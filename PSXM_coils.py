@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from coils import Coils, as_array
 
 
-class AXSMCoils(Coils):
+class PSXMCoils(Coils):
     """
-    Six coils of an AXSM sensor, evenly spaced around a circle.
+    Six coils of an PSXM sensor, evenly spaced around a circle.
 
     Each physical coil is a racetrack-style winding whose two straight legs
     pierce the x-y plane at the same radius but at slightly different
@@ -50,7 +50,7 @@ class AXSMCoils(Coils):
                  shield=False, shield_radius=27.5, shield_n=100, shield_currents=None):
         currents = np.atleast_1d(np.asarray(currents, dtype=float))
         if len(currents) != self.N_COILS:
-            raise ValueError(f"AXSMCoils requires exactly {self.N_COILS} currents, got {len(currents)}")
+            raise ValueError(f"PSXMCoils requires exactly {self.N_COILS} currents, got {len(currents)}")
         if coil_length > 2 * radius:
             raise ValueError("coil_length cannot exceed 2 * radius")
         if shield_currents is not None and not shield:
@@ -103,7 +103,7 @@ class AXSMCoils(Coils):
         super().__init__(x=x, y=y, I=I)
 
     def __repr__(self):
-        return f"AXSMCoils(radius={self.radius}, coil_length={self.coil_length}, currents={self.currents.tolist()})"
+        return f"PSXMCoils(radius={self.radius}, coil_length={self.coil_length}, currents={self.currents.tolist()})"
 
     def group_matrix(self):
         """
@@ -194,7 +194,7 @@ class AXSMCoils(Coils):
 
 
 if __name__ == "__main__":
-    axsm = AXSMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
-    print(axsm)
-    print(axsm.positions)
-    axsm.plot(path="test.png")
+    psxm = PSXMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
+    print(psxm)
+    print(psxm.positions)
+    psxm.plot(path="test.png")

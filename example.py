@@ -1,6 +1,6 @@
 import numpy as np
 
-from AXSM_coils import AXSMCoils
+from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver
 
 
@@ -20,7 +20,7 @@ def main():
     # Geometry only: both the 6 main-coil currents and the shield-can
     # currents are unknowns to be solved for, not prescribed here.
     shield_n = 100
-    source = AXSMCoils(currents=np.zeros(6), shield=True, shield_n=shield_n)
+    source = PSXMCoils(currents=np.zeros(6), shield=True, shield_n=shield_n)
 
     solver = CurrentSolver.from_current_source(source)
 
@@ -56,15 +56,15 @@ def main():
     shield_weight = shield_weight_scale / n_shield_samples
 
     add_zero_field_ring(solver, source, source.shield_radius, n_between, shield_weight)
-    add_zero_field_ring(solver, source, source.shield_radius + 1.0, n_between, shield_weight)
+    add_zero_field_ring(solver, source, source.shield_radius + 5.0, n_between, shield_weight)
 
     I_free = solver.solve()
     B_fit = solver.predicted_field(I_free)
     B_target = solver.target_field()
 
     I_free_scaled = CurrentSolver.normalize_currents(I_free, max_current=1000.0)
-    main_currents = I_free_scaled[:AXSMCoils.N_COILS]
-    shield_currents = I_free_scaled[AXSMCoils.N_COILS:]
+    main_currents = I_free_scaled[:PSXMCoils.N_COILS]
+    shield_currents = I_free_scaled[PSXMCoils.N_COILS:]
 
     n_pts = len(solver.sample_x)
     shield_start = n_center
@@ -76,11 +76,12 @@ def main():
 
     print("main coil currents I1..I6 (A):", main_currents)
     print(f"shield current range (A): [{shield_currents.min():.3f}, {shield_currents.max():.3f}]")
+    print(f"total shield current (A): {shield_currents.sum():.3f}")
     print("max abs residual at center sample points (T): ", group_residual(0, n_center))
     print("max abs residual at shield sample points (T): ", group_residual(shield_start, outside_start))
     print("max abs residual at outside sample points (T):", group_residual(outside_start, n_pts))
 
-    solved = AXSMCoils(
+    solved = PSXMCoils(
         currents=main_currents, radius=source.radius, coil_length=source.coil_length,
         start_angle=source.start_angle, shield=True, shield_radius=source.shield_radius,
         shield_n=shield_n, shield_currents=shield_currents,

@@ -20,7 +20,7 @@ class CurrentSolver:
     linear superposition B = K @ I, where K is the coefficient matrix
     returned by coefficient_matrix().
 
-    Some current sources (e.g. AXSMCoils) have fewer physical degrees of
+    Some current sources (e.g. PSXMCoils) have fewer physical degrees of
     freedom than current points, because one physical coil pierces the
     plane at several points whose currents are a fixed linear combination
     of a single coil current (e.g. +I_k / -I_k on its two legs). Set
@@ -28,7 +28,7 @@ class CurrentSolver:
     per-point currents = group_matrix @ free currents; solve() then solves
     for the smaller free-variable vector instead of one DOF per point. Use
     from_current_source() to build this automatically from a source object
-    that defines a group_matrix() method (e.g. AXSMCoils).
+    that defines a group_matrix() method (e.g. PSXMCoils).
     """
 
     def __init__(self, sample_x=None, sample_y=None, sample_Bx=None, sample_By=None,
@@ -57,7 +57,7 @@ class CurrentSolver:
         """
         Build a CurrentSolver whose current points are the positions of
         `source` (any Coils instance). If source defines a group_matrix()
-        method (e.g. AXSMCoils), it is used to reduce the number of free
+        method (e.g. PSXMCoils), it is used to reduce the number of free
         variables solved for to source's physical degrees of freedom.
         """
         group_matrix = source.group_matrix() if hasattr(source, "group_matrix") else None
@@ -171,13 +171,13 @@ class CurrentSolver:
 
 
 if __name__ == "__main__":
-    from AXSM_coils import AXSMCoils
+    from PSXM_coils import PSXMCoils
 
-    truth = AXSMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
+    truth = PSXMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
 
     # target: an ideal quadrupole field (Bx = G*y, By = G*x) sampled on a
     # small (~1 mm) circle around the origin. Solve for the 6 physical
-    # AXSM coil currents (not one DOF per leg point) via group_matrix.
+    # PSXM coil currents (not one DOF per leg point) via group_matrix.
     G = 1e-3  # T/mm
     solver = CurrentSolver.from_current_source(truth)
     for angle in np.linspace(0, 2 * np.pi, 12, endpoint=False):
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     print("max abs field residual (T):", np.max(np.abs(B_fit - B_target)))
 
     I_free_scaled = CurrentSolver.normalize_currents(I_free, max_current=1000.0)
-    solved_axsm = AXSMCoils(
+    solved_psxm = PSXMCoils(
         currents=I_free_scaled, radius=truth.radius, coil_length=truth.coil_length, start_angle=truth.start_angle,
     )
-    solved_axsm.plot(path="test.png", extent=2.44)
+    solved_psxm.plot(path="test.png", extent=2.44)
