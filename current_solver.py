@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # target: an ideal quadrupole field (Bx = G*y, By = G*x) sampled on a
     # small (~1 mm) circle around the origin. Solve for the 6 physical
     # PSXM coil currents (not one DOF per leg point) via group_matrix.
-    G = 1e-3  # T/mm
+    G = 1e-2  # T/mm
     solver = CurrentSolver.from_current_source(truth)
     for angle in np.linspace(0, 2 * np.pi, 12, endpoint=False):
         x, y = 1.0 * np.cos(angle), 1.0 * np.sin(angle)

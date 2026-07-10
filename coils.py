@@ -144,6 +144,14 @@ class Coils:
             plt.show()
         return ax
 
+    def draw(self, ax, n_grid=400, n_levels=40, extent=1.3):
+        """
+        Draw the field-line plot (see plot) onto ax without showing or
+        saving — useful for embedding in interactive figures that manage
+        their own show / event loop.
+        """
+        return self._plot_field(n_grid, n_levels, ax, extent)
+
     def plot(self, n_grid=400, n_levels=40, ax=None, path=None, extent=1.3, dpi=200):
         """
         Plot magnetic field lines around the coils, as contour lines of the
@@ -160,7 +168,7 @@ class Coils:
         """
         if ax is None:
             _, ax = plt.subplots(figsize=(6, 6))
-        self._plot_field(n_grid, n_levels, ax, extent)
+        self.draw(ax, n_grid, n_levels, extent)
         return self._show_or_save(ax, path, dpi=dpi)
 
 

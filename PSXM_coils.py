@@ -125,19 +125,14 @@ class PSXMCoils(Coils):
             M[2 * self.N_COILS:, self.N_COILS:] = np.eye(self.shield_n)
         return M
 
-    def plot(self, n_grid=400, n_levels=40, ax=None, path=None, extent=4.0 / 3.0, dpi=200):
+    def draw(self, ax, n_grid=400, n_levels=40, extent=4.0 / 3.0, legend=True):
         """
-        Plot magnetic field lines around the coil ring (see Coils.plot),
-        plus the coil ring boundary and I1..I6 labels/legend.
+        Draw the field-line plot, coil ring boundary, I1..I6 labels (and
+        the shield, if enabled) onto ax without showing or saving.
 
-        The plotted range spans [-radius*extent, radius*extent] in both x
-        and y (extent defaults to 4/3).
-
-        If path is non-empty, the figure is saved there (at the given dpi)
-        instead of shown.
+        legend=False skips the current-value legend — useful when an
+        interactive UI displays the currents elsewhere.
         """
-        if ax is None:
-            _, ax = plt.subplots(figsize=(6, 6))
         self._plot_field(n_grid, n_levels, ax, extent)
 
         theta = np.linspace(0, 2 * np.pi, 200)
@@ -155,8 +150,25 @@ class PSXMCoils(Coils):
         if self.shield:
             self._plot_shield(ax)
 
-        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False)
+        if legend:
+            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False)
 
+        return ax
+
+    def plot(self, n_grid=400, n_levels=40, ax=None, path=None, extent=4.0 / 3.0, dpi=200):
+        """
+        Plot magnetic field lines around the coil ring (see Coils.plot),
+        plus the coil ring boundary and I1..I6 labels/legend.
+
+        The plotted range spans [-radius*extent, radius*extent] in both x
+        and y (extent defaults to 4/3).
+
+        If path is non-empty, the figure is saved there (at the given dpi)
+        instead of shown.
+        """
+        if ax is None:
+            _, ax = plt.subplots(figsize=(6, 6))
+        self.draw(ax, n_grid, n_levels, extent)
         return self._show_or_save(ax, path, dpi=dpi)
 
     def _plot_shield(self, ax, arrow_max_length=None):
