@@ -76,7 +76,7 @@ class RotationPanel:
         self.fig = plt.figure(figsize=(8, 7.6))
         self.ax = self.fig.add_axes([0.10, 0.26, 0.80, 0.66])
         self.fig.text(0.5, 0.005,
-                      "Drag θ / radius (or type a value); currents & residual re-solve live",
+                      "Drag θ;  blue arrow = B,  red = muon force (μ+ into screen),  length ∝ |B|",
                       ha="center", fontsize=8, color="gray")
         self._field_artists = []
         self._draw_static()
@@ -86,14 +86,16 @@ class RotationPanel:
         self._ring, = self.ax.plot([], [], "b--", lw=1.0, zorder=2)
         self._ring_pts, = self.ax.plot([], [], "b.", ms=5, zorder=2)
 
-        # --- widgets: theta and radius, each slider + type-in box ---
+        # --- widget: theta slider + type-in box ---
         self.theta_slider, self.theta_box = self._add_slider_box(
-            0.135, r"$\theta$ (deg)", 0.0, 180.0, 0.0, self._on_theta)
-        r_max = 0.9 * self.tpl.radius
-        self.radius_slider, self.radius_box = self._add_slider_box(
-            0.065, "sample r (mm)", 0.2, r_max, self.sample_r, self._on_radius)
+            0.10, r"$\theta$ (deg)", 0.0, 180.0, 0.0, self._on_theta)
 
-        self._hover = _HoverReadout(self.fig, self.ax, lambda: self.coils)
+        # hover arrow length proportional to |B| (relative to the field
+        # magnitude on the sample ring, updated each solve).
+        self._b_ref = 1.0
+        self._hover = _HoverReadout(self.fig, self.ax, lambda: self.coils,
+                                    proportional=True, get_bref=lambda: self._b_ref,
+                                    show_force=True)
         self._refresh()
 
     # ----------------------------------------------------------- precompute
@@ -169,11 +171,6 @@ class RotationPanel:
         self.theta = np.deg2rad(val_deg)
         self._refresh()
 
-    def _on_radius(self, val_mm):
-        self.sample_r = max(1e-3, float(val_mm))
-        self._rebuild_K()
-        self._refresh()
-
     # --------------------------------------------------------------- redraw
     def _draw_static(self):
         ax, L, tpl = self.ax, self._L, self.tpl
@@ -198,16 +195,14 @@ class RotationPanel:
         B = np.concatenate([Bx, By])
         I, *_ = np.linalg.lstsq(self._K, B, rcond=None)
 
-        # residual as a percentage: relative L2 error of achieved vs target
-        # field, using the RAW least-squares currents (scale-honest).
-        B_fit = self._K @ I
-        denom = np.linalg.norm(B)
-        resid_pct = 100.0 * np.linalg.norm(B_fit - B) / denom if denom > 0 else 0.0
-
         # rescale only for display so the field shape is visible at any theta
         peak = float(np.max(np.abs(I)))
         I_disp = I * (MAX_CURRENT / peak) if peak > 0 else I
         self.coils = PSXMCoils(currents=I_disp, **self.coil_kwargs)
+
+        # reference |B| (on the sample ring) so the hover arrow length ∝ |B|
+        bx, by = self.coils.B_field(self.sample_r, 0.0)
+        self._b_ref = float(np.hypot(bx, by)) or 1.0
 
         # sample ring + points
         th = np.linspace(0, 2 * np.pi, 200)
@@ -229,8 +224,7 @@ class RotationPanel:
 
         currents = "  ".join(f"$I_{k + 1}$={I_disp[k]:.0f}" for k in range(PSXMCoils.N_COILS))
         self.ax.set_title(
-            f"θ = {np.degrees(self.theta):.0f}°   |   sample r = {self.sample_r:.2f} mm   |   "
-            f"residual = {resid_pct:.2f} %\n{currents}",
+            f"θ = {np.degrees(self.theta):.0f}°   |   sample r = {self.sample_r:.2f} mm\n{currents}",
             fontsize=9)
         self.fig.canvas.draw_idle()
 
