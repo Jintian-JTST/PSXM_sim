@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver
@@ -86,7 +87,25 @@ def main():
         start_angle=source.start_angle, shield=True, shield_radius=source.shield_radius,
         shield_n=shield_n, shield_currents=shield_currents,
     )
-    solved.plot(path="example.png", extent=2)
+
+    # Draw the field, then overlay the three groups of sample ("test")
+    # points so it's visible *where* each target is imposed:
+    #   - center: the quadrupole target (Bx=G*y, By=G*x)
+    #   - shield ring / outside ring: the B = 0 (leakage) targets
+    fig, ax = plt.subplots(figsize=(7.5, 7))
+    solved.draw(ax, extent=2, legend=False)
+
+    sx, sy = np.asarray(solver.sample_x), np.asarray(solver.sample_y)
+    ax.scatter(sx[:n_center], sy[:n_center], s=30, c="tab:blue",
+               marker="o", zorder=5, label="center target (quadrupole)")
+    ax.scatter(sx[shield_start:outside_start], sy[shield_start:outside_start], s=12,
+               c="tab:green", marker="o", zorder=5, label="shield ring:  B = 0")
+    ax.scatter(sx[outside_start:n_pts], sy[outside_start:n_pts], s=12,
+               c="tab:orange", marker="x", zorder=5, label="outside (+5 mm):  B = 0")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False, fontsize=8)
+
+    fig.savefig("example.png", dpi=200, bbox_inches="tight")
+    print("saved example.png")
 
 
 if __name__ == "__main__":
