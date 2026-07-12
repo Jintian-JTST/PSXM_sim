@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from coils import Coils, as_array
 
-
+N_COIL=6
 class PSXMCoils(Coils):
     """
     Six coils of an PSXM sensor, evenly spaced around a circle.
@@ -44,7 +44,7 @@ class PSXMCoils(Coils):
     CurrentSolver) rather than prescribed.
     """
 
-    N_COILS = 6
+    N_COILS = N_COIL
 
     def __init__(self, currents, radius=22.5, coil_length=20.0, start_angle=0,
                  shield=False, shield_radius=27.5, shield_n=100, shield_currents=None):
@@ -206,7 +206,10 @@ class PSXMCoils(Coils):
 
 
 if __name__ == "__main__":
-    psxm = PSXMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
+    #psxm = PSXMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
+    psxm = PSXMCoils(currents=[0, 1000, 1000, 0, -1000, -1000],shield=True,shield_n=100,shield_currents=[-1000]*100)
+    #psxm = PSXMCoils(currents=[0,-1,0,0,0,0],shield=True,shield_n=100,shield_currents=np.zeros(100))
     print(psxm)
     print(psxm.positions)
-    psxm.plot(path="test.png")
+    psxm.plot()
+    #psxm.plot(path="test.png")

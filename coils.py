@@ -179,3 +179,5 @@ if __name__ == "__main__":
     coils.add_coil(3, 3, 2.0)
     print(coils)
     print("total current:", coils.total_current())
+    coils.remove_coil(3)
+    plt = coils.plot()

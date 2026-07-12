@@ -180,9 +180,14 @@ if __name__ == "__main__":
     # PSXM coil currents (not one DOF per leg point) via group_matrix.
     G = 1e-2  # T/mm
     solver = CurrentSolver.from_current_source(truth)
-    for angle in np.linspace(0, 2 * np.pi, 12, endpoint=False):
-        x, y = 1.0 * np.cos(angle), 1.0 * np.sin(angle)
-        solver.add_sample_point(x, y, Bx=G * y, By=G * x)
+    phi = np.deg2rad(10)          # 想转多少度
+    c, s = np.cos(2*phi), np.sin(2*phi)
+    r =20  # mm
+    for angle in np.linspace(0, 2*np.pi, 12, endpoint=False):
+        x, y = r * np.cos(angle), r * np.sin(angle)
+        solver.add_sample_point(x, y,
+            Bx=G*(y*c - x*s),
+            By=G*(x*c + y*s))
 
     I_free = solver.solve()
     B_fit = solver.predicted_field(I_free)
