@@ -47,7 +47,8 @@ class PSXMCoils(Coils):
     N_COILS = N_COIL
 
     def __init__(self, currents, radius=22.5, coil_length=20.0, start_angle=0,
-                 shield=False, shield_radius=27.5, shield_n=100, shield_currents=None):
+                 shield=False, shield_radius=27.5, shield_n=100, shield_currents=None,
+                 test_radius=32.0):
         currents = np.atleast_1d(np.asarray(currents, dtype=float))
         if len(currents) != self.N_COILS:
             raise ValueError(f"PSXMCoils requires exactly {self.N_COILS} currents, got {len(currents)}")
@@ -69,6 +70,7 @@ class PSXMCoils(Coils):
         self.shield = shield
         self.shield_radius = shield_radius
         self.shield_n = shield_n if shield else 0
+        self.test_radius = test_radius
 
         half_width = np.degrees(np.arcsin(coil_length / (2.0 * radius)))
 

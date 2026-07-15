@@ -57,7 +57,7 @@ def main():
     shield_weight = shield_weight_scale / n_shield_samples
 
     add_zero_field_ring(solver, source, source.shield_radius, n_between, shield_weight)
-    add_zero_field_ring(solver, source, source.shield_radius + 5.0, n_between, shield_weight)
+    add_zero_field_ring(solver, source, source.test_radius, n_between, shield_weight)
 
     I_free = solver.solve()
     B_fit = solver.predicted_field(I_free)
