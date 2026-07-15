@@ -96,11 +96,11 @@ def main():
     solved.draw(ax, extent=2, legend=False)
 
     sx, sy = np.asarray(solver.sample_x), np.asarray(solver.sample_y)
-    ax.scatter(sx[:n_center], sy[:n_center], s=30, c="tab:blue",
+    ax.scatter(sx[:n_center], sy[:n_center], s=2, c="tab:blue",
                marker="o", zorder=5, label="center target (quadrupole)")
-    ax.scatter(sx[shield_start:outside_start], sy[shield_start:outside_start], s=12,
+    ax.scatter(sx[shield_start:outside_start], sy[shield_start:outside_start], s=2,
                c="tab:green", marker="o", zorder=5, label="shield ring:  B = 0")
-    ax.scatter(sx[outside_start:n_pts], sy[outside_start:n_pts], s=12,
+    ax.scatter(sx[outside_start:n_pts], sy[outside_start:n_pts], s=2,
                c="tab:orange", marker="x", zorder=5, label="outside (+5 mm):  B = 0")
     ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False, fontsize=8)
 

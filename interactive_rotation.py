@@ -45,6 +45,11 @@ G = 1e-3              # target field gradient, T/mm
 N_SAMPLE = 12        # number of sample points on the ring
 MAX_CURRENT = 1000.0  # solved currents are rescaled so max|I| = this (A) for display
 
+# hover-arrow scaling (both the blue B arrow and the red muon-force arrow):
+#   length (mm) = ARROW_MM_PER_TESLA * |B| ,  capped at ARROW_MAX_MM
+ARROW_MM_PER_TESLA = 400.0   # proportionality: arrow length in mm per tesla of |B|
+ARROW_MAX_MM = 15.0          # hard upper limit on arrow length, mm
+
 
 def rotated_quad_target(x, y, theta):
     """(Bx, By) [T] of a quadrupole field rotated by theta (rad)."""
@@ -76,7 +81,7 @@ class RotationPanel:
         self.fig = plt.figure(figsize=(8, 7.6))
         self.ax = self.fig.add_axes([0.10, 0.26, 0.80, 0.66])
         self.fig.text(0.5, 0.005,
-                      "Drag θ / radius (or type a value); currents & residual re-solve live",
+                      "Hover: blue = B, red = muon force (μ+ into screen), length ∝ |B|",
                       ha="center", fontsize=8, color="gray")
         self._field_artists = []
         self._draw_static()
@@ -93,7 +98,11 @@ class RotationPanel:
         self.radius_slider, self.radius_box = self._add_slider_box(
             0.065, "sample r (mm)", 0.2, r_max, self.sample_r, self._on_radius)
 
-        self._hover = _HoverReadout(self.fig, self.ax, lambda: self.coils)
+        # hover: blue arrow = B, red arrow = muon force (mu+ into screen);
+        # both lengths prop. to |B| (capped); readout box pinned to a corner.
+        self._hover = _HoverReadout(
+            self.fig, self.ax, lambda: self.coils, show_force=True,
+            arrow_scale=ARROW_MM_PER_TESLA, arrow_max=ARROW_MAX_MM, annot_fixed=True)
         self._refresh()
 
     # ----------------------------------------------------------- precompute

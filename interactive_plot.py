@@ -70,13 +70,23 @@ def format_B(value):
     return f"{sign}{mag / 1e-9:.4g} nT"
 
 
-def _readout_artists(ax, animated=False):
-    """Create the (hidden) tooltip and direction-arrow artists on ax."""
-    annot = ax.annotate(
-        "", xy=(0, 0), xytext=(15, 15), textcoords="offset points",
-        fontsize=9, zorder=10, visible=False, animated=animated,
-        bbox=dict(boxstyle="round", fc="lightyellow", ec="0.5", alpha=0.9),
-    )
+def _readout_artists(ax, animated=False, fixed=False):
+    """Create the (hidden) tooltip and direction-arrow artists on ax.
+
+    fixed=True pins the tooltip to a fixed corner of the axes (updated in
+    place, not following the cursor)."""
+    if fixed:
+        annot = ax.text(
+            0.015, 0.985, "", transform=ax.transAxes, ha="left", va="top",
+            fontsize=9, zorder=10, visible=False, animated=animated,
+            bbox=dict(boxstyle="round", fc="lightyellow", ec="0.5", alpha=0.9),
+        )
+    else:
+        annot = ax.annotate(
+            "", xy=(0, 0), xytext=(15, 15), textcoords="offset points",
+            fontsize=9, zorder=10, visible=False, animated=animated,
+            bbox=dict(boxstyle="round", fc="lightyellow", ec="0.5", alpha=0.9),
+        )
     arrow = ax.quiver(
         [0.0], [0.0], [1.0], [0.0], angles="xy", scale_units="xy", scale=1,
         color="tab:blue", width=0.006, zorder=9, visible=False, animated=animated,
@@ -84,15 +94,27 @@ def _readout_artists(ax, animated=False):
     return annot, arrow
 
 
-def _update_readout(event, ax, coils, annot, arrow, arrow_frac=0.08):
+def _update_readout(event, ax, coils, annot, arrow, arrow_frac=0.08,
+                    force_arrow=None, arrow_scale=None, arrow_max=None,
+                    move_annot=True):
     """
-    Update the tooltip + arrow from a mouse-motion event.
+    Update the tooltip + arrow(s) from a mouse-motion event.
     Returns True if the readout changed (needs re-blit/redraw).
+
+    arrow_scale: if given, arrow length (data units, mm) = arrow_scale*|B|
+    (capped at arrow_max), i.e. proportional to the field magnitude. If
+    None, the arrow is a fixed length (arrow_frac of the view width).
+    force_arrow: optional quiver drawn along the muon Lorentz force
+    F = q v x B (same length as the field arrow).
+    move_annot: if False the tooltip is not repositioned (kept pinned).
     """
     if event.inaxes is not ax or event.xdata is None:
-        if annot.get_visible() or arrow.get_visible():
+        force_vis = force_arrow is not None and force_arrow.get_visible()
+        if annot.get_visible() or arrow.get_visible() or force_vis:
             annot.set_visible(False)
             arrow.set_visible(False)
+            if force_arrow is not None:
+                force_arrow.set_visible(False)
             return True
         return False
 
@@ -100,16 +122,20 @@ def _update_readout(event, ax, coils, annot, arrow, arrow_frac=0.08):
     try:
         Bx, By = coils.B_field(x, y)
     except ValueError:  # cursor sitting exactly on a conductor
-        annot.xy = (x, y)
+        if move_annot:
+            annot.xy = (x, y)
         annot.set_text(f"({x:.2f}, {y:.2f}) mm\non a conductor (field singular)")
         annot.set_visible(True)
         arrow.set_visible(False)
+        if force_arrow is not None:
+            force_arrow.set_visible(False)
         return True
 
     B_mag = float(np.hypot(Bx, By))
     angle = np.degrees(np.arctan2(By, Bx))  # direction, deg CCW from +x
 
-    annot.xy = (x, y)
+    if move_annot:
+        annot.xy = (x, y)
     annot.set_text(
         f"({x:.2f}, {y:.2f}) mm\n"
         f"|B| = {format_B(B_mag)}\n"
@@ -119,13 +145,27 @@ def _update_readout(event, ax, coils, annot, arrow, arrow_frac=0.08):
     annot.set_visible(True)
 
     if B_mag > 0:
-        xlim = ax.get_xlim()
-        length = arrow_frac * (xlim[1] - xlim[0])
+        if arrow_scale is not None:
+            length = arrow_scale * B_mag              # mm, proportional to |B|
+            if arrow_max is not None:
+                length = min(length, arrow_max)
+        else:
+            xlim = ax.get_xlim()
+            length = arrow_frac * (xlim[1] - xlim[0])
+        ux, uy = Bx / B_mag, By / B_mag
         arrow.set_offsets([[x, y]])
-        arrow.set_UVC([length * Bx / B_mag], [length * By / B_mag])
+        arrow.set_UVC([length * ux], [length * uy])
         arrow.set_visible(True)
+        if force_arrow is not None:
+            # muon mu+ into the screen (v = -z): F = q v x B = e(By, -Bx),
+            # perpendicular to B, same length (|F| prop to |B|).
+            force_arrow.set_offsets([[x, y]])
+            force_arrow.set_UVC([length * uy], [length * (-ux)])
+            force_arrow.set_visible(True)
     else:
         arrow.set_visible(False)
+        if force_arrow is not None:
+            force_arrow.set_visible(False)
 
     return True
 
@@ -146,12 +186,23 @@ class _HoverReadout:
     # trail further and further behind the cursor
     MIN_INTERVAL = 1.0 / 120.0
 
-    def __init__(self, fig, ax, get_coils, arrow_frac=0.08):
+    def __init__(self, fig, ax, get_coils, arrow_frac=0.08, show_force=False,
+                 arrow_scale=None, arrow_max=None, annot_fixed=False):
         self.fig = fig
         self.ax = ax
         self.get_coils = get_coils
         self.arrow_frac = arrow_frac
-        self.annot, self.arrow = _readout_artists(ax, animated=True)
+        self.arrow_scale = arrow_scale
+        self.arrow_max = arrow_max
+        self.annot_fixed = annot_fixed
+        self.annot, self.arrow = _readout_artists(ax, animated=True, fixed=annot_fixed)
+        if show_force:
+            self.force_arrow = ax.quiver(
+                [0.0], [0.0], [0.0], [0.0], angles="xy", scale_units="xy", scale=1,
+                color="tab:red", width=0.006, zorder=9, visible=False, animated=True,
+            )
+        else:
+            self.force_arrow = None
         self._bg = None
         self._last_region = None  # display-space bbox drawn last frame
         self._last_time = 0.0
@@ -182,7 +233,12 @@ class _HoverReadout:
             # quiver window extent is unreliable; build a box around the
             # arrow base with radius = max arrow length in pixels
             px, py = self.ax.transData.transform(self.arrow.get_offsets()[0])
-            r = self.ax.bbox.width * self.arrow_frac * 1.6
+            if self.arrow_scale is not None and self.arrow_max is not None:
+                x0, x1 = self.ax.get_xlim()
+                reach_frac = self.arrow_max / abs(x1 - x0)   # mm -> view fraction
+            else:
+                reach_frac = self.arrow_frac
+            r = self.ax.bbox.width * reach_frac * 1.6
             boxes.append(Bbox([[px - r, py - r], [px + r, py + r]]))
 
         new = Bbox.union(boxes).padded(12) if boxes else None
@@ -208,7 +264,10 @@ class _HoverReadout:
                 return
             self._last_time = now
 
-        if not _update_readout(event, self.ax, coils, self.annot, self.arrow, self.arrow_frac):
+        if not _update_readout(event, self.ax, coils, self.annot, self.arrow,
+                               self.arrow_frac, self.force_arrow,
+                               self.arrow_scale, self.arrow_max,
+                               move_annot=not self.annot_fixed):
             return
         if self._bg is None:  # no full draw yet; fall back
             self.fig.canvas.draw_idle()
@@ -218,6 +277,8 @@ class _HoverReadout:
         canvas.restore_region(self._bg)
         self.ax.draw_artist(self.annot)
         self.ax.draw_artist(self.arrow)
+        if self.force_arrow is not None:
+            self.ax.draw_artist(self.force_arrow)
         # push only the small dirty region to the screen -- copying the
         # whole ~1100x650 px figure per mouse move is what feels "laggy"
         # on slower backends (especially TkAgg)
