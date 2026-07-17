@@ -1,109 +1,121 @@
+"""PSXM 2-D leakage using the PHYSICAL induced shield current.
+
+The coils are a fixed quadrupole. The shield current is NOT solved by
+least squares (that over-fits with unphysical currents -> fake 1e-9
+leakage); it is the current a real copper shell actually INDUCES:
+
+  1. coil exterior multipole moments   C_m = sum_j I_j z_j^m
+  2. a real thin shell reduces mode m by the L/R factor
+       f_m = i w tau_m / (1 + i w tau_m),   tau_m = mu0 sigma d_eff a /(2 m)
+  3. induced surface current
+       K(theta) = - sum_m Re[f_m C_m e^{-i m theta}] / (pi a^{m+1})   [A/m]
+     sampled onto shield_n line currents (I_k = K(theta_k) * 2*pi*a/shield_n).
+
+Leakage is then the honest physical result: the quadrupole exterior is
+reduced by ~1/(1+i w tau_2) (a few x 10^-3), NOT 1e-9.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 from PSXM_coils import PSXMCoils
-from current_solver import CurrentSolver
+
+MU0 = 4e-7 * np.pi
+
+# --- literature / design parameters (edit for the real PSXM) --------------
+SIGMA_CU = 5.8e7       # S/m, copper conductivity
+A_SHIELD_MM = 27.5     # mm, shield radius
+D_SHIELD = 2.0e-3      # m, copper thickness (nominal)
+I_COIL = 1000.0        # A, main-coil peak current
+T_PULSE = 1.0e-6       # s, pulse width (mentor: ~1 kA, <= 1 us)
+SHIELD_N = 120         # shield discretization points
+M_MODES = 10           # azimuthal modes kept
+R_BEAM = 5.0           # mm, reference beam radius
 
 
-def add_zero_field_ring(solver, source, radius, n_between, weight):
-    """Add sample points requiring zero field, evenly spaced between every
-    pair of adjacent shield current points, on the circle of given radius."""
-    shield_n = source.shield_n
-    gap = 360.0 / shield_n
-    for base_angle in source.shield_angles:
-        for j in range(1, n_between + 1):
-            angle = np.radians(base_angle + j * gap / (n_between + 1))
-            x, y = radius * np.cos(angle), radius * np.sin(angle)
-            solver.add_sample_point(x, y, Bx=0.0, By=0.0, weight=weight)
+def ring_meanB(coils, rho, n=96):
+    """Mean |B| (T) on a circle of radius rho (mm), skipping conductor hits."""
+    vals = []
+    for a in np.linspace(0.017, 2 * np.pi + 0.017, n, endpoint=False):
+        try:
+            vals.append(coils.B_magnitude(rho * np.cos(a), rho * np.sin(a)))
+        except ValueError:
+            pass
+    return float(np.mean(vals)) if vals else np.nan
+
+
+def induced_shield_currents(coil_currents, a_m, shield_angles_deg):
+    """Physical induced shield line currents (A) at the shield points, plus
+    the skin depth and dominant-mode shielding factor."""
+    omega = np.pi / T_PULSE
+    delta = np.sqrt(2.0 / (MU0 * SIGMA_CU * omega))
+    d_eff = min(D_SHIELD, delta)
+
+    legs = PSXMCoils(currents=coil_currents)                       # 12 coil legs
+    z = (np.asarray(legs.x) + 1j * np.asarray(legs.y)) * 1e-3      # m
+    Ileg = np.asarray(legs.I)
+    C = [np.sum(Ileg * z ** m) for m in range(M_MODES + 1)]        # multipole moments
+
+    th = np.radians(shield_angles_deg)
+    K = np.zeros_like(th)
+    S2 = None
+    for m in range(1, M_MODES + 1):
+        tau = MU0 * SIGMA_CU * d_eff * a_m / (2 * m)
+        f = 1j * omega * tau / (1 + 1j * omega * tau)
+        K += -np.real(f * C[m] * np.exp(-1j * m * th)) / (np.pi * a_m ** (m + 1))
+        if m == 2:
+            S2 = 1.0 / abs(1 + 1j * omega * tau)
+    seg = 2 * np.pi * a_m / len(th)
+    return K * seg, delta, d_eff, S2
 
 
 def main():
-    # Geometry only: both the 6 main-coil currents and the shield-can
-    # currents are unknowns to be solved for, not prescribed here.
-    shield_n = 100
-    source = PSXMCoils(currents=np.zeros(6), shield=True, shield_n=shield_n)
+    coil_currents = np.array([0, I_COIL, I_COIL, 0, -I_COIL, -I_COIL], float)  # quadrupole
+    a_m = A_SHIELD_MM * 1e-3
+    tpl = PSXMCoils(currents=np.zeros(6), shield=True,
+                    shield_radius=A_SHIELD_MM, shield_n=SHIELD_N)
+    I_shield, delta, d_eff, S2 = induced_shield_currents(coil_currents, a_m, tpl.shield_angles)
 
-    solver = CurrentSolver.from_current_source(source)
+    print(f"pulse width {T_PULSE*1e6:.2f} us -> skin depth {delta*1e6:.1f} um, d_eff {d_eff*1e6:.1f} um")
+    print(f"coil current {I_COIL:.0f} A/leg;  induced shield: peak {np.max(np.abs(I_shield)):.1f} A, "
+          f"total(one way) {0.5*np.sum(np.abs(I_shield)):.1f} A")
+    print(f"dominant quadrupole (m=2) shielding factor: {S2:.3e}\n")
 
-    # Target 1: an ideal quadrupole field (Bx = G*y, By = G*x) near the
-    # center (~1 mm).
-    G = 1e-3  # T/mm
-    n_center = 12
-    center_weight = 1.0 / n_center
-    for angle in np.linspace(0, 2 * np.pi, n_center, endpoint=False):
-        x, y = np.cos(angle), np.sin(angle)
-        solver.add_sample_point(x, y, Bx=G * y, By=G * x, weight=center_weight)
+    kw = dict(radius=22.5, coil_length=20.0)
+    shielded = PSXMCoils(currents=coil_currents, shield=True, shield_radius=A_SHIELD_MM,
+                         shield_n=SHIELD_N, shield_currents=I_shield, **kw)
+    unshielded = PSXMCoils(currents=coil_currents, **kw)
 
-    # Targets 2 & 3: zero field at n_between points evenly spaced between
-    # every pair of adjacent shield current points, both on the shield
-    # circle itself and 1 mm beyond it (checking that leakage stays low
-    # just outside the shield too).
-    #
-    # There are far more of these than center points (shield_n * n_between
-    # vs n_center) -- normalizing by count alone isn't enough, though: the
-    # shield sits only ~5 mm outside the main coils, so any current strong
-    # enough to matter at the center induces a *much* larger field there
-    # (an order of magnitude more than the 1 mm quadrupole target). An
-    # unweighted (or count-only-weighted) fit is dominated by trivially
-    # keeping the shield's residual small via near-zero currents, at the
-    # expense of the quadrupole target actually being reached. shield_weight
-    # is an extra knob down-weighting the shield groups' importance
-    # relative to the center group, to reflect that we care more about
-    # hitting the quadrupole than perfectly nulling the shield; lower it to
-    # trade shield leakage for a better quadrupole fit (and vice versa).
-    n_between = 3
-    n_shield_samples = shield_n * n_between
-    shield_weight_scale = 1
-    shield_weight = shield_weight_scale / n_shield_samples
+    # leakage far enough out that the shield-point ripple has decayed
+    r_far = 2 * A_SHIELD_MM
+    Bbeam = ring_meanB(unshielded, R_BEAM)
+    Bo_un = ring_meanB(unshielded, r_far)
+    Bo_sh = ring_meanB(shielded, r_far)
+    print(f"beam |B| (r={R_BEAM:.0f} mm): {Bbeam*1e3:.3f} mT")
+    print(f"exterior |B| (r={r_far:.0f} mm):  no-shield {Bo_un*1e3:.4f} mT   shielded {Bo_sh*1e3:.4f} mT")
+    print(f"physical shield suppression at r={r_far:.0f} mm: {Bo_un/Bo_sh:.1f}x  "
+          f"({Bo_sh/Bo_un*100:.2f} % leaks through)")
 
-    add_zero_field_ring(solver, source, source.shield_radius, n_between, shield_weight)
-    add_zero_field_ring(solver, source, source.test_radius, n_between, shield_weight)
+    # --- plots ---
+    fig, (axf, axl) = plt.subplots(1, 2, figsize=(13, 6))
+    shielded.draw(axf, extent=2, legend=False)
+    axf.set_title("field lines + induced shield")
 
-    I_free = solver.solve()
-    B_fit = solver.predicted_field(I_free)
-    B_target = solver.target_field()
+    rho = np.geomspace(1.0, 3 * A_SHIELD_MM, 80)
+    Bsh = np.array([ring_meanB(shielded, r) for r in rho])
+    Bun = np.array([ring_meanB(unshielded, r) for r in rho])
+    axl.loglog(rho, Bun * 1e3, label="no shield")
+    axl.loglog(rho, Bsh * 1e3, label="with induced shield")
+    for xr, lbl in [(22.5, "coils"), (A_SHIELD_MM, "shield"), (R_BEAM, "beam r")]:
+        axl.axvline(xr, color="gray", ls="--", lw=0.7)
+        axl.text(xr, axl.get_ylim()[1], lbl, fontsize=7, rotation=90, va="top")
+    axl.set_xlabel("radius ρ (mm)")
+    axl.set_ylabel("ring-averaged |B| (mT)")
+    axl.set_title("leakage: |B| vs radius (physical shield)")
+    axl.legend()
+    axl.grid(True, which="both", alpha=0.3)
 
-    I_free_scaled = CurrentSolver.normalize_currents(I_free, max_current=1000.0)
-    main_currents = I_free_scaled[:PSXMCoils.N_COILS]
-    shield_currents = I_free_scaled[PSXMCoils.N_COILS:]
-
-    n_pts = len(solver.sample_x)
-    shield_start = n_center
-    outside_start = n_center + n_shield_samples
-
-    def group_residual(start, stop):
-        idx = np.r_[start:stop, n_pts + start:n_pts + stop]
-        return np.max(np.abs(B_fit - B_target)[idx])
-
-    print("main coil currents I1..I6 (A):", main_currents)
-    print(f"shield current range (A): [{shield_currents.min():.3f}, {shield_currents.max():.3f}]")
-    print(f"total shield current (A): {shield_currents.sum():.3f}")
-    print("max abs residual at center sample points (T): ", group_residual(0, n_center))
-    print("max abs residual at shield sample points (T): ", group_residual(shield_start, outside_start))
-    print("max abs residual at outside sample points (T):", group_residual(outside_start, n_pts))
-
-    solved = PSXMCoils(
-        currents=main_currents, radius=source.radius, coil_length=source.coil_length,
-        start_angle=source.start_angle, shield=True, shield_radius=source.shield_radius,
-        shield_n=shield_n, shield_currents=shield_currents,
-    )
-
-    # Draw the field, then overlay the three groups of sample ("test")
-    # points so it's visible *where* each target is imposed:
-    #   - center: the quadrupole target (Bx=G*y, By=G*x)
-    #   - shield ring / outside ring: the B = 0 (leakage) targets
-    fig, ax = plt.subplots(figsize=(7.5, 7))
-    solved.draw(ax, extent=2, legend=False)
-
-    sx, sy = np.asarray(solver.sample_x), np.asarray(solver.sample_y)
-    ax.scatter(sx[:n_center], sy[:n_center], s=2, c="tab:blue",
-               marker="o", zorder=5, label="center target (quadrupole)")
-    ax.scatter(sx[shield_start:outside_start], sy[shield_start:outside_start], s=2,
-               c="tab:green", marker="o", zorder=5, label="shield ring:  B = 0")
-    ax.scatter(sx[outside_start:n_pts], sy[outside_start:n_pts], s=2,
-               c="tab:orange", marker="x", zorder=5, label="outside (+5 mm):  B = 0")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False, fontsize=8)
-
+    fig.tight_layout()
     fig.savefig("example.png", dpi=200, bbox_inches="tight")
     print("saved example.png")
 
