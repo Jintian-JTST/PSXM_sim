@@ -9,11 +9,13 @@ Setup:  pip install uproot awkward numpy matplotlib
 Run:    python analyze_track.py
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import uproot
 
-FNAME = "trk20000.root"
+# trk20000.root lives in PSXM_sim/ (parent of this script's folder)
+FNAME = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trk20000.root")
 PSXM_Z = 1.10           # m, approximate PSXM location
 EXCLUDE_TURNS = 1.0     # ignore +/- this many turns around the PSXM point (same pass)
 
@@ -70,8 +72,8 @@ def main():
 
     ax[1].plot(r, z, ".", ms=1.5, color="0.6", label="beam")
     ax[1].plot(r[i0], z[i0], "r*", ms=14, label="PSXM")
-    ax[1].plot(r[j], z[j], "bo", ms=8, mfc="none", label="nearest other")
-    ax[1].plot([r[i0], r[j]], [z[i0], z[j]], "b--", lw=1)
+    #ax[1].plot(r[j], z[j], "bo", ms=8, mfc="none", label="nearest other")
+    ax[1].plot([r[i0]], [z[i0]], "b--", lw=1)
     ax[1].set_xlabel("r (m)"); ax[1].set_ylabel("z (m)")
     ax[1].set_title(f"nearest-beam distance = {d[j]:.3f} m"); ax[1].legend()
     fig.tight_layout()

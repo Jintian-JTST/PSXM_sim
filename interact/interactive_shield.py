@@ -27,20 +27,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, TextBox
 
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # add PSXM_sim/ to path
+
 from coils import MU0
 from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver
-from interactive_plot import _remove_contour_set, _HoverReadout
+from interactive_plot import _remove_contour_set, _HoverReadout, format_B
 
 G = 1e-3              # target field gradient, T/mm
 N_SAMPLE = 12        # sample points on the target ring
 MAX_CURRENT = 1000.0  # coil currents rescaled so max|I| = this (A) for display
-SHIELD_R_MAX = 42.0  # max shield radius (mm); also fixes the plot extent
+SHIELD_R_MAX = 420  # max shield radius (mm) for the slider
+VIEW_MM = 450.0      # plot half-extent (mm): field lines + gray fill this whole box.
+                     #   raise it to reach further out (e.g. 450 for the 0.45 m beam),
+                     #   but the magnet then looks smaller.
 
 # hover-arrow scaling (blue B arrow and red muon-force arrow):
 #   length (mm) = ARROW_MM_PER_TESLA * |B| ,  capped at ARROW_MAX_MM
 ARROW_MM_PER_TESLA = 400.0
 ARROW_MAX_MM = 15.0
+
+BENCH_R_MM = 419.0   # mm: show ring-averaged |B| at this radius (nearest-beam distance)
 
 
 def rotated_quad_target(x, y, theta):
@@ -53,7 +61,7 @@ class ShieldedRotationPanel:
     """theta / r / s / shield-R controls -> solve coil currents for the
     rotated quadrupole, drive the shield via I_shield = s*S@I_coil, redraw."""
 
-    def __init__(self, n_grid=200, n_levels=40, extent=4.0 / 3.0, sample_r=1.0,
+    def __init__(self, n_grid=300, n_levels=40, extent=4.0 / 3.0, sample_r=1.0,
                  shield_radius=27.5, shield_n=100, **coil_kwargs):
         self.coil_kwargs = dict(coil_kwargs, shield=True,
                                 shield_radius=shield_radius, shield_n=shield_n)
@@ -66,9 +74,9 @@ class ShieldedRotationPanel:
         self.shield_scale = 1.0
         self._updating = False
 
-        # fixed plot grid (sized for the largest shield radius, so the view
-        # does not jump when shield R changes)
-        self._L = SHIELD_R_MAX * extent
+        # grid AND view both span +/- VIEW_MM, so the field lines and the
+        # gray region fill the whole plot instead of a tiny central blob.
+        self._L = VIEW_MM
         xs = np.linspace(-self._L, self._L, n_grid)
         self._X, self._Y = np.meshgrid(xs, xs)
 
@@ -220,6 +228,8 @@ class ShieldedRotationPanel:
             0.52, "shield R (mm)", sr_min, SHIELD_R_MAX, self.shield_radius, self._on_shield_radius)
         self.fig.text(0.68, 0.47, "s: 0=no shield, 1=full | R: shield can radius",
                       fontsize=8, color="gray")
+        self._bench_text = self.fig.text(0.06, 0.955, "", fontsize=11,
+                                         fontweight="bold", color="tab:red", zorder=3)
 
     def _on_theta(self, v):
         self.theta = np.deg2rad(v)
@@ -254,8 +264,8 @@ class ShieldedRotationPanel:
             a = np.radians(tpl.center_angles[k])
             ax.text(tpl.radius * 1.15 * np.cos(a), tpl.radius * 1.15 * np.sin(a),
                     f"$I_{k + 1}$", ha="center", va="center", fontsize=11, clip_on=True)
-        ax.set_xlim(-L, L)
-        ax.set_ylim(-L, L)
+        ax.set_xlim(-self._L, self._L)
+        ax.set_ylim(-self._L, self._L)
         ax.set_aspect("equal")
         ax.set_xlabel("X (mm)")
         ax.set_ylabel("Y (mm)")
@@ -271,6 +281,17 @@ class ShieldedRotationPanel:
         length = 0.15 * self.shield_radius * np.abs(I_shield) / max_abs
         direction = np.sign(I_shield)
         self._shield_quiver.set_UVC(direction * ux * length, direction * uy * length)
+
+    def _bench_field(self, n=24):
+        """Ring-averaged |B| (T) at BENCH_R_MM (well outside the view)."""
+        r = BENCH_R_MM
+        vals = []
+        for a in np.linspace(0.01, 2 * np.pi, n, endpoint=False):
+            try:
+                vals.append(self.coils.B_magnitude(r * np.cos(a), r * np.sin(a)))
+            except ValueError:
+                pass
+        return float(np.mean(vals)) if vals else np.nan
 
     def _refresh(self):
         I_coil = self._solve_currents()
@@ -296,6 +317,8 @@ class ShieldedRotationPanel:
             f"θ = {np.degrees(self.theta):.0f}°   |   r = {self.sample_r:.2f} mm   |   "
             f"s = {self.shield_scale:.2f}   |   shield R = {self.shield_radius:.1f} mm\n{currents}",
             fontsize=9)
+        self._bench_text.set_text(
+            f"|B| at {BENCH_R_MM/1000:.3f} m (ring-avg): {format_B(self._bench_field())}")
         self.fig.canvas.draw_idle()
 
     def show(self):
@@ -304,7 +327,7 @@ class ShieldedRotationPanel:
 
 def main():
     p = argparse.ArgumentParser(description="Interactive shielded rotational-quadrupole PSXM viewer.")
-    p.add_argument("--n-grid", type=int, default=200, help="contour grid resolution")
+    p.add_argument("--n-grid", type=int, default=300, help="contour grid resolution")
     p.add_argument("--radius", type=float, default=22.5, help="coil ring radius, mm")
     p.add_argument("--coil-length", type=float, default=20.0, help="coil leg chord length, mm")
     p.add_argument("--shield-radius", type=float, default=27.5, help="initial shield can radius, mm")

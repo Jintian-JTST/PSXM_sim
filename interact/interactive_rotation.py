@@ -36,6 +36,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, TextBox
 
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # add PSXM_sim/ to path
+
 from coils import MU0
 from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver

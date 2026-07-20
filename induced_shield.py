@@ -92,8 +92,8 @@ def main():
 
     # --- plot ----------------------------------------------------------
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-    ax[0].plot(np.degrees(th), K_ideal, label="ideal (perfect conductor)")
-    ax[0].plot(np.degrees(th), K_real, "--", label="induced (real shell)")
+    ax[0].plot(np.degrees(th), K_ideal, )
+    #ax[0].plot(np.degrees(th), K_real, "--", label="induced (real shell)")
     ax[0].set_xlabel("θ (deg)")
     ax[0].set_ylabel("surface current K (A/m)")
     ax[0].set_title("induced shield surface current")

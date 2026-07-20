@@ -26,7 +26,7 @@ MU0 = 4e-7 * np.pi
 COIL_LENGTH_Z = 0.10   # m, axial length of the PSXM coils (ASSM eff. length ~0.1 m)
 MAX_CURRENT = 1000.0   # A, currents rescaled so max|I| = this
 SPEC_UT = 3.0          # µT, benchmark = 1e-6 of the 3 T main field
-DIST_MARKS = (0.235, 0.5)   # m, distances of interest (nearest beam / ~0.5 m)
+DIST_MARKS = (0.235, 0.42)   # m, distances of interest (nearest beam ~0.42 m)
 
 
 # ----------------------------------------------------------- Biot-Savart
@@ -128,7 +128,7 @@ def main():
     print(f"central dipole |B| (1 mm off-axis): {B_center*1e3:.3f} mT")
     print(f"spec benchmark: {SPEC_UT} µT  (1e-6 of 3 T)\n")
 
-    dist = np.geomspace(2e-3, 0.6, 200)
+    dist = np.geomspace(2e-3, 0.42, 200)
     axial = np.column_stack([np.zeros_like(dist), np.zeros_like(dist), dist])
     Bc = np.linalg.norm(B_coils(axial), axis=1)
     Bt = np.linalg.norm(B_total(axial), axis=1)

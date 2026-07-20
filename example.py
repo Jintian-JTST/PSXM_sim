@@ -87,26 +87,27 @@ def main():
     unshielded = PSXMCoils(currents=coil_currents, **kw)
 
     # leakage far enough out that the shield-point ripple has decayed
-    r_far = 2 * A_SHIELD_MM
     Bbeam = ring_meanB(unshielded, R_BEAM)
-    Bo_un = ring_meanB(unshielded, r_far)
-    Bo_sh = ring_meanB(shielded, r_far)
     print(f"beam |B| (r={R_BEAM:.0f} mm): {Bbeam*1e3:.3f} mT")
-    print(f"exterior |B| (r={r_far:.0f} mm):  no-shield {Bo_un*1e3:.4f} mT   shielded {Bo_sh*1e3:.4f} mT")
-    print(f"physical shield suppression at r={r_far:.0f} mm: {Bo_un/Bo_sh:.1f}x  "
-          f"({Bo_sh/Bo_un*100:.2f} % leaks through)")
+    for r_far in (2 * A_SHIELD_MM, 419.0):
+        Bo_un = ring_meanB(unshielded, r_far)
+        Bo_sh = ring_meanB(shielded, r_far)
+        print(f"exterior at r={r_far:6.1f} mm:  no-shield {Bo_un*1e6:10.3f} µT   "
+              f"shielded {Bo_sh*1e6:10.3f} µT   suppression {Bo_un/Bo_sh:.1f}x  "
+              f"({Bo_sh/Bo_un*100:.2f} % leaks)")
 
     # --- plots ---
     fig, (axf, axl) = plt.subplots(1, 2, figsize=(13, 6))
     shielded.draw(axf, extent=2, legend=False)
     axf.set_title("field lines + induced shield")
 
-    rho = np.geomspace(1.0, 3 * A_SHIELD_MM, 80)
+    rho = np.geomspace(1.0, 420.0, 140)      # out to 0.42 m (nearest-beam distance)
     Bsh = np.array([ring_meanB(shielded, r) for r in rho])
     Bun = np.array([ring_meanB(unshielded, r) for r in rho])
     axl.loglog(rho, Bun * 1e3, label="no shield")
     axl.loglog(rho, Bsh * 1e3, label="with induced shield")
-    for xr, lbl in [(22.5, "coils"), (A_SHIELD_MM, "shield"), (R_BEAM, "beam r")]:
+    for xr, lbl in [(22.5, "coils"), (A_SHIELD_MM, "shield"), (R_BEAM, "beam r"),
+                    (419.0, "0.419 m")]:
         axl.axvline(xr, color="gray", ls="--", lw=0.7)
         axl.text(xr, axl.get_ylim()[1], lbl, fontsize=7, rotation=90, va="top")
     axl.set_xlabel("radius ρ (mm)")
