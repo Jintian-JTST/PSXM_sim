@@ -49,27 +49,62 @@ def solve_quad_coils(tpl):
     I, *_ = np.linalg.lstsq(K, solver.target_field(), rcond=None)
     return CurrentSolver.normalize_currents(I, MAX_CURRENT)
 
+def solve_dipole_coils(tpl, B0=1e-3):
+    """Coil currents (coil DOF only) for a uniform dipole Bx = B0, By = 0
+    at the centre, normalized to MAX_CURRENT."""
+    solver = CurrentSolver.from_current_source(tpl)
+    for a in np.linspace(0, 2 * np.pi, 12, endpoint=False):
+        x, y = np.cos(a), np.sin(a)                       # 1 mm ring
+        solver.add_sample_point(x, y, Bx=B0, By=0.0)
+    K = (solver.coefficient_matrix() @ tpl.group_matrix())[:, :PSXMCoils.N_COILS]
+    I, *_ = np.linalg.lstsq(K, solver.target_field(), rcond=None)
+    return CurrentSolver.normalize_currents(I, MAX_CURRENT)
 
-def shield_zero_solver(tpl, gap_mm=SAMPLE_GAP_MM):
-    """Solver with B=0 samples on (shield+gap) and (shield+OUTER) rings,
-    placed in the azimuthal gaps between shield points."""
+
+
+
+def shield_zero_solver(tpl, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_between=N_BETWEEN):
+    """Solver with B=0 samples on (shield+gap_mm) and (shield+outer_mm)
+    rings, placed in the azimuthal gaps between shield points.
+
+    gap_mm / outer_mm / n_between default to the module constants but are
+    exposed as arguments so callers (chi2_scan.py, verify_ls.py, ...) can
+    scan them without re-deriving this sampling layout themselves."""
     solver = CurrentSolver.from_current_source(tpl)
     dphi = 360.0 / tpl.shield_n
-    for radius in (tpl.shield_radius + gap_mm, tpl.shield_radius + OUTER_MM):
+    for radius in (tpl.shield_radius + gap_mm, tpl.shield_radius + outer_mm):
         for base in tpl.shield_angles:
-            for j in range(1, N_BETWEEN + 1):
-                a = np.radians(base + j * dphi / (N_BETWEEN + 1))
+            for j in range(1, n_between + 1):
+                a = np.radians(base + j * dphi / (n_between + 1))
                 solver.add_sample_point(radius * np.cos(a), radius * np.sin(a), 0.0, 0.0)
     return solver
 
 
-def ls_shield_currents(tpl, I_coil, gap_mm=SAMPLE_GAP_MM):
+def ls_shield_currents(tpl, I_coil, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_between=N_BETWEEN):
     """Least-squares response shield currents I_s = S @ I_coil,
     S = -K_s^+ K_6 from nulling B on the offset rings."""
-    KM = shield_zero_solver(tpl, gap_mm).coefficient_matrix() @ tpl.group_matrix()
+    KM = (shield_zero_solver(tpl, gap_mm, outer_mm, n_between).coefficient_matrix()
+          @ tpl.group_matrix())
     K6, Ksh = KM[:, :PSXMCoils.N_COILS], KM[:, PSXMCoils.N_COILS:]
     X, *_ = np.linalg.lstsq(Ksh, K6, rcond=None)
     return (-X) @ I_coil
+
+
+def ideal_surface_K(theta, a_m, I_coil, m_modes=M_MODES):
+    """Perfect-conductor surface current K_ideal(theta) [A/m]: the
+    continuous-shell multipole solution that exactly cancels every
+    exterior multipole of I_coil (no L/R filtering -- see
+    induced_shield_currents() for the real, filtered shell). Shared by
+    verify_ls.py, chi2_scan.py and induced_shield.py as the analytic
+    reference curve."""
+    legs = PSXMCoils(currents=I_coil)
+    z = (np.asarray(legs.x) + 1j * np.asarray(legs.y)) * 1e-3
+    Ileg = np.asarray(legs.I)
+    K = np.zeros_like(np.asarray(theta, dtype=float))
+    for m in range(1, m_modes + 1):
+        C = np.sum(Ileg * z ** m)
+        K += -np.real(C * np.exp(-1j * m * theta)) / (np.pi * a_m ** (m + 1))
+    return K
 
 
 def induced_shield_currents(tpl, I_coil, t_pulse=T_PULSE, sigma=SIGMA_CU, d=D_SHIELD):
@@ -121,8 +156,8 @@ def leakage_report(shielded, unshielded, marks=MARKS_MM):
     print(f"beam |B| (r=5 mm): {ring_meanB(unshielded, 5.0)*1e3:.3f} mT")
     for d in marks:
         bu, bs = ring_meanB(unshielded, d), ring_meanB(shielded, d)
-        print(f"leakage at {d/1000:.3f} m:  no-shield {bu*1e6:10.3f} µT   "
-              f"shielded {bs*1e6:10.3f} µT   suppression {bu/bs:.1f}x")
+        print(f"leakage at {d/1000:.3f} m:  no-shield {bu*1e6:10.3f} uT   "
+              f"shielded {bs*1e6:10.3f} uT   suppression {bu/bs:.1f}x")
 
 
 def two_panel(shielded, unshielded, title, fname, marks=MARKS_MM):

@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 from coils import MU0
 from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver
+from shield_common import shield_zero_solver, SAMPLE_GAP_MM
 from interactive_plot import _remove_contour_set, _HoverReadout, format_B
 
 G = 1e-3              # target field gradient, T/mm
@@ -109,14 +110,14 @@ class ShieldedRotationPanel:
 
     # ----------------------------------------------------------- precompute
     def _precompute_shield_response(self, n_between=3, outer_offset=5.0):
+        """B=0 samples on two rings offset radially from the shield (at
+        SAMPLE_GAP_MM and outer_offset mm), not directly on the shield
+        conductors -- see shield_common.shield_zero_solver; sampling on
+        the conductors themselves sits in their 1/r near-field singularity
+        and gives spurious currents."""
         tpl = self.tpl
-        solver = CurrentSolver.from_current_source(tpl)
-        gap = 360.0 / tpl.shield_n
-        for radius in (tpl.shield_radius, tpl.shield_radius + outer_offset):
-            for base in tpl.shield_angles:
-                for j in range(1, n_between + 1):
-                    a = np.radians(base + j * gap / (n_between + 1))
-                    solver.add_sample_point(radius * np.cos(a), radius * np.sin(a), 0.0, 0.0)
+        solver = shield_zero_solver(tpl, gap_mm=SAMPLE_GAP_MM, outer_mm=outer_offset,
+                                    n_between=n_between)
         KM = solver.coefficient_matrix() @ tpl.group_matrix()
         K6 = KM[:, :PSXMCoils.N_COILS]
         Ksh = KM[:, PSXMCoils.N_COILS:]

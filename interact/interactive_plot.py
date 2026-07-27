@@ -56,8 +56,8 @@ from matplotlib.widgets import Slider, TextBox
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # add PSXM_sim/ to path
 from coils import MU0
-from current_solver import CurrentSolver
 from PSXM_coils import PSXMCoils
+from shield_common import shield_zero_solver, SAMPLE_GAP_MM
 
 DEMO_CURRENTS = [729.3, 1000.0, 270.7, -729.3, -1000.0, -270.7]
 
@@ -384,18 +384,15 @@ class PSXMControlPanel:
         """
         Precompute the shield response matrix S (shield_n x 6) such that
         I_shield = S @ I_coils is the least-squares solution nulling the
-        field at points on the shield circle and outer_offset mm outside
-        it (n_between sample points between every pair of adjacent shield
-        current points, as in example.py).
+        field on two rings offset radially from the shield -- at
+        SAMPLE_GAP_MM and at outer_offset mm -- rather than sampling
+        directly on the shield conductors, which sits in their 1/r
+        near-field singularity and gives spurious currents (see
+        shield_common.shield_zero_solver, the same fix used by
+        example.py / shield2D.py).
         """
-        solver = CurrentSolver.from_current_source(tpl)
-        gap = 360.0 / tpl.shield_n
-        for radius in (tpl.shield_radius, tpl.shield_radius + outer_offset):
-            for base_angle in tpl.shield_angles:
-                for j in range(1, n_between + 1):
-                    a = np.radians(base_angle + j * gap / (n_between + 1))
-                    solver.add_sample_point(radius * np.cos(a), radius * np.sin(a), Bx=0.0, By=0.0)
-
+        solver = shield_zero_solver(tpl, gap_mm=SAMPLE_GAP_MM, outer_mm=outer_offset,
+                                    n_between=n_between)
         KM = solver.coefficient_matrix() @ tpl.group_matrix()
         K6 = KM[:, :PSXMCoils.N_COILS]     # field at samples per unit coil current
         Ksh = KM[:, PSXMCoils.N_COILS:]    # field at samples per unit shield current

@@ -1,85 +1,93 @@
-"""Injection-track analysis (trk20000.root): turn-to-turn spacing near the
-PSXM and the true 3-D distance to the nearest other beam segment.
+"""Injection-track analysis (trk20000.root)
+: turn-to-turn spacing near thePSXM and the true 3-D distance to the nearest other beam segment.Near z = 1.1 m the beam is still on the incoming arc (full 2*pi turns onlystart below z ~ 0.7 m)
+, so the relevant "leakage distance" is the closestapproach of any *other* beam segment to the PSXM location.Setup:  pip install uproot awkward numpy matplotlibRun:    python analyze_track.py"""import osimport numpy as npimport matplotlib.pyplot as pltimport uproot# trk20000.root lives in PSXM_sim/ (parent of this script's folder)
+FNAME = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
+)
+)
+, "trk20000.root")
+PSXM_Z = 1.10           # m, approximate PSXM locationEXCLUDE_TURNS = 1.0     # ignore +/- this many turns around the PSXM point (same pass)
 
-Near z = 1.1 m the beam is still on the incoming arc (full 2*pi turns only
-start below z ~ 0.7 m), so the relevant "leakage distance" is the closest
-approach of any *other* beam segment to the PSXM location.
-
-Setup:  pip install uproot awkward numpy matplotlib
-Run:    python analyze_track.py
-"""
-
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-import uproot
-
-# trk20000.root lives in PSXM_sim/ (parent of this script's folder)
-FNAME = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trk20000.root")
-PSXM_Z = 1.10           # m, approximate PSXM location
-EXCLUDE_TURNS = 1.0     # ignore +/- this many turns around the PSXM point (same pass)
-
-
-def main():
-    tree = uproot.open(FNAME)["trk"]
-    a = tree.arrays(["r", "theta", "z", "b_x", "b_y", "b_z"], library="np")
-    r, th, z = a["r"].ravel(), a["theta"].ravel(), a["z"].ravel()
-    bx, by, bz = a["b_x"].ravel(), a["b_y"].ravel(), a["b_z"].ravel()
+main()
+:    tree = uproot.open(FNAME)
+["trk"]    a = tree.arrays(["r", "theta", "z", "b_x", "b_y", "b_z"], library="np")
+    r, th, z = a["r"].ravel()
+, a["theta"].ravel()
+, a["z"].ravel()
+    bx, by, bz = a["b_x"].ravel()
+, a["b_y"].ravel()
+, a["b_z"].ravel()
     n = len(z)
-    print(f"{n} points,  z [{z.min():.3f}, {z.max():.3f}] m,  r [{r.min():.3f}, {r.max():.3f}] m")
-
-    # ---- turns: z at each full 2*pi of unwrapped theta ----
-    thu = np.unwrap(th)
-    turn_z, target = [], thu[0] + 2 * np.pi
-    for i in range(1, n):
-        while thu[i] >= target:
-            d = thu[i] - thu[i - 1]
-            frac = (target - thu[i - 1]) / d if d != 0 else 0.0
-            turn_z.append(z[i - 1] + frac * (z[i] - z[i - 1]))
-            target += 2 * np.pi
-    turn_z = np.array(turn_z)
-    n_turns = max(len(turn_z), 1)
-    per_turn = n / n_turns
-    print(f"{len(turn_z)} full turns,  ~{per_turn:.0f} samples/turn")
-    if len(turn_z) >= 2:
-        dz = np.abs(np.diff(turn_z))
+    print(f"{n} points,  z [{z.min()
+:.3f}, {z.max()
+:.3f}] m,  r [{r.min()
+:.3f}, {r.max()
+:.3f}] m")
+    # ---- turns: z at each full 2*pi of unwrapped theta ----    thu = np.unwrap(th)
+    turn_z, target = [], thu[0] + 2 * np.pi    for i in range(1, n)
+:        while thu[i] >= target:            d = thu[i] - thu[i - 1]            frac = (target - thu[i - 1])
+ / d if d != 0 else 0.0            turn_z.append(z[i - 1] + frac * (z[i] - z[i - 1])
+)
+            target += 2 * np.pi    turn_z = np.array(turn_z)
+    n_turns = max(len(turn_z)
+, 1)
+    per_turn = n / n_turns    print(f"{len(turn_z)
+} full turns,  ~{per_turn:.0f} samples/turn")
+    if len(turn_z)
+ >= 2:        dz = np.abs(np.diff(turn_z)
+)
         mid = 0.5 * (turn_z[:-1] + turn_z[1:])
-        k = int(np.argmin(np.abs(mid - PSXM_Z)))
-        print(f"nearest full-turn pitch to z={PSXM_Z} m: Δz = {dz[k]:.3f} m "
-              f"(turns at z={turn_z[k]:.3f}, {turn_z[k+1]:.3f})")
-
-    # ---- 3-D nearest other beam segment to the PSXM point ----
-    x = r * np.cos(th); y = r * np.sin(th)
+        k = int(np.argmin(np.abs(mid - PSXM_Z)
+)
+)
+        print(f"nearest full-turn pitch to z={PSXM_Z} m: Δz = {dz[k]:.3f} m "              f"(turns at z={turn_z[k]:.3f}, {turn_z[k+1]:.3f})
+")
+    # ---- 3-D nearest other beam segment to the PSXM point ----    x = r * np.cos(th)
+;
+ y = r * np.sin(th)
     P = np.column_stack([x, y, z])
-    i0 = int(np.argmin(np.abs(z - PSXM_Z)))
-    p0 = P[i0]
-    print(f"\nPSXM point idx={i0}: r={r[i0]:.3f}, z={z[i0]:.3f} m,  "
-          f"|B|_beam={np.sqrt(bx[i0]**2+by[i0]**2+bz[i0]**2)*1e3:.1f} mT (main storage field)")
+    i0 = int(np.argmin(np.abs(z - PSXM_Z)
+)
+)
+    p0 = P[i0]    print(f"\nPSXM point idx={i0}: r={r[i0]:.3f}, z={z[i0]:.3f} m,  "          f"|B|_beam={np.sqrt(bx[i0]**2+by[i0]**2+bz[i0]**2)
+*1e3:.1f} mT (main storage field)
+")
     d = np.linalg.norm(P - p0, axis=1)
     excl = int(EXCLUDE_TURNS * per_turn)
-    d = np.where(np.abs(np.arange(n) - i0) > excl, d, np.inf)
-    j = int(np.argmin(d))
-    print(f">>> nearest OTHER beam segment (excl. +/-{EXCLUDE_TURNS} turn): "
-          f"{d[j]:.3f} m  (at z={z[j]:.3f}, r={r[j]:.3f} m)")
+    d = np.where(np.abs(np.arange(n)
+ - i0)
+ > excl, d, np.inf)
+    j = int(np.argmin(d)
+)
+    print(f">>> nearest OTHER beam segment (excl. +/-{EXCLUDE_TURNS} turn)
+: "          f"{d[j]:.3f} m  (at z={z[j]:.3f}, r={r[j]:.3f} m)
+")
     print(">>> evaluate the PSXM leakage field around this distance.")
-
-    # ---- plot ----
-    fig, ax = plt.subplots(1, 2, figsize=(11, 5))
-    ax[0].plot(thu / (2 * np.pi), z, ".", ms=1.5)
+    # ---- plot ----    fig, ax = plt.subplots(1, 2, figsize=(11, 5)
+)
+    ax[0].plot(thu / (2 * np.pi)
+, z, ".", ms=1.5)
     ax[0].axhline(PSXM_Z, color="r", ls="--", label=f"PSXM z={PSXM_Z} m")
-    ax[0].set_xlabel("turn number"); ax[0].set_ylabel("z (m)")
-    ax[0].set_title("injection spiral: z vs turn"); ax[0].legend()
-
+    ax[0].set_xlabel("turn number")
+;
+ ax[0].set_ylabel("z (m)
+")
+    ax[0].set_title("injection spiral: z vs turn")
+;
+ ax[0].legend()
     ax[1].plot(r, z, ".", ms=1.5, color="0.6", label="beam")
     ax[1].plot(r[i0], z[i0], "r*", ms=14, label="PSXM")
     #ax[1].plot(r[j], z[j], "bo", ms=8, mfc="none", label="nearest other")
     ax[1].plot([r[i0]], [z[i0]], "b--", lw=1)
-    ax[1].set_xlabel("r (m)"); ax[1].set_ylabel("z (m)")
-    ax[1].set_title(f"nearest-beam distance = {d[j]:.3f} m"); ax[1].legend()
+    ax[1].set_xlabel("r (m)
+")
+;
+ ax[1].set_ylabel("z (m)
+")
+    ax[1].set_title(f"nearest-beam distance = {d[j]:.3f} m")
+;
+ ax[1].legend()
     fig.tight_layout()
-    fig.savefig("track_analysis.png", dpi=150)
-    print("\nsaved track_analysis.png")
+    fig.savefig("figures/track_turn_spacing.png", dpi=150)
+    print("\nsaved figures/track_turn_spacing.png")
 
-
-if __name__ == "__main__":
-    main()
+__name__ == "__main__":    main()
