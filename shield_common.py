@@ -156,8 +156,8 @@ def leakage_report(shielded, unshielded, marks=MARKS_MM):
     print(f"beam |B| (r=5 mm): {ring_meanB(unshielded, 5.0)*1e3:.3f} mT")
     for d in marks:
         bu, bs = ring_meanB(unshielded, d), ring_meanB(shielded, d)
-        print(f"leakage at {d/1000:.3f} m:  no-shield {bu*1e6:10.3f} uT   "
-              f"shielded {bs*1e6:10.3f} uT   suppression {bu/bs:.1f}x")
+        print(f"leakage at {d/1000:.6f} m:  no-shield {bu*1e6:10.6f} uT   "
+              f"shielded {bs*1e6:10.6f} uT   suppression {bu/bs:.1f}x")
 
 
 def two_panel(shielded, unshielded, title, fname, marks=MARKS_MM):
