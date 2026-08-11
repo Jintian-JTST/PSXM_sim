@@ -24,9 +24,9 @@ script scans (gap_mm, n_between) and reports, for each combination:
                                to the typical field there (should be small
                                but is NOT exactly zero -- proof it's a true
                                least-squares fit, not a tautology)
-  3. convergence to physics    peak(K_LS) / peak(K_analytic), the same
-                               metric as verify_ls.py's T4
-  4. leakage suppression       at the 0.419 m nearest-beam benchmark
+  3. leakage suppression       at the 0.419 m nearest-beam benchmark --
+                               the quantity the sampling layout is
+                               supposed to control
 
 so the (gap_mm, n_between, shield_n) choice used in shield_common.py can be
 picked from data instead of by eye, and "does increasing sampling points
@@ -39,11 +39,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from PSXM_coils import PSXMCoils
-from shield_common import shield_zero_solver, ideal_surface_K
+from shield_common import shield_zero_solver
 
 MU0 = 4e-7 * np.pi
 I_COIL = 1000.0
-M_MODES = 8
 R_BENCH_MM = 419.0      # nearest-beam benchmark
 
 
@@ -60,12 +59,6 @@ def build_shield_solver(tpl, gap_mm, n_between, outer_mm):
     KM = solver.coefficient_matrix() @ tpl.group_matrix()
     K6, Ksh = KM[:, :PSXMCoils.N_COILS], KM[:, PSXMCoils.N_COILS:]
     return K6, Ksh
-
-
-def analytic_K(theta, a_m, coil_currents):
-    """Perfect-conductor surface current K_ideal(theta) [A/m] -- see
-    shield_common.ideal_surface_K for the formula."""
-    return ideal_surface_K(theta, a_m, coil_currents, m_modes=M_MODES)
 
 
 def ring_meanB(coils, rho, n=96):
@@ -99,13 +92,6 @@ def run_case(shield_n, gap_mm, n_between):
     B_scale = float(np.max(np.abs(K6 @ I_c)))
     chi2_rel = float(np.sqrt(chi2 / n_eq) / B_scale)
 
-    # convergence to the analytic ideal-conductor solution
-    seg = 2 * np.pi * (tpl.shield_radius * 1e-3) / shield_n
-    K_LS = I_s / seg
-    th_pts = np.radians(tpl.shield_angles)
-    Kan_pts = analytic_K(th_pts, tpl.shield_radius * 1e-3, I_c)
-    ratio = float(np.max(np.abs(K_LS)) / np.max(np.abs(Kan_pts)))
-
     # leakage suppression at the benchmark distance
     shielded = PSXMCoils(currents=I_c, shield=True, shield_radius=tpl.shield_radius,
                          shield_n=shield_n, shield_currents=I_s)
@@ -115,7 +101,7 @@ def run_case(shield_n, gap_mm, n_between):
 
     return dict(shield_n=shield_n, gap_mm=gap_mm, n_between=n_between,
                 n_eq=n_eq, n_unk=n_unk, redundancy=n_eq / n_unk,
-                chi2_rel=chi2_rel, ratio=ratio, suppression=suppression)
+                chi2_rel=chi2_rel, suppression=suppression)
 
 
 def main():
@@ -125,27 +111,26 @@ def main():
 
     rows = []
     print(f"{'gap_mm':>7} {'n_between':>9} {'redund.':>8} {'chi2_rel':>10} "
-          f"{'K_LS/K_an':>10} {'suppress@0.419m':>16}")
+          f"{'suppress@0.419m':>16}")
     for nb in n_betweens:
         for g in gaps:
             r = run_case(shield_n, g, nb)
             rows.append(r)
             print(f"{g:7.1f} {nb:9d} {r['redundancy']:8.1f} {r['chi2_rel']:10.2e} "
-                  f"{r['ratio']:10.3f} {r['suppression']:16.1f}")
+                  f"{r['suppression']:16.1f}")
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
     for nb in n_betweens:
         rs = [r for r in rows if r["n_between"] == nb]
-        ax[0].plot([r["gap_mm"] for r in rs], [r["ratio"] for r in rs],
-                   "o-", label=f"n_between={nb}")
+        ax[0].semilogy([r["gap_mm"] for r in rs], [r["suppression"] for r in rs],
+                       "o-", label=f"n_between={nb}")
         ax[1].semilogy([r["gap_mm"] for r in rs], [r["chi2_rel"] for r in rs],
                        "o-", label=f"n_between={nb}")
-    ax[0].axhline(1.0, color="k", ls="--", lw=0.8, label="perfect agreement")
     ax[0].set_xlabel("sample gap (mm)")
-    ax[0].set_ylabel("peak K_LS / peak K_analytic")
-    ax[0].set_title("convergence vs sample gap & sampling density")
+    ax[0].set_ylabel("leakage suppression at 0.419 m")
+    ax[0].set_title("does the design outcome depend on the sampling layout?")
     ax[0].legend(fontsize=7)
-    ax[0].grid(alpha=0.3)
+    ax[0].grid(alpha=0.3, which="both")
 
     ax[1].set_xlabel("sample gap (mm)")
     ax[1].set_ylabel("rms residual B / typical B  (achieved chi2)")

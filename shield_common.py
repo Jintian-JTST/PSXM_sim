@@ -90,23 +90,6 @@ def ls_shield_currents(tpl, I_coil, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_b
     return (-X) @ I_coil
 
 
-def ideal_surface_K(theta, a_m, I_coil, m_modes=M_MODES):
-    """Perfect-conductor surface current K_ideal(theta) [A/m]: the
-    continuous-shell multipole solution that exactly cancels every
-    exterior multipole of I_coil (no L/R filtering -- see
-    induced_shield_currents() for the real, filtered shell). Shared by
-    verify_ls.py, chi2_scan.py and induced_shield.py as the analytic
-    reference curve."""
-    legs = PSXMCoils(currents=I_coil)
-    z = (np.asarray(legs.x) + 1j * np.asarray(legs.y)) * 1e-3
-    Ileg = np.asarray(legs.I)
-    K = np.zeros_like(np.asarray(theta, dtype=float))
-    for m in range(1, m_modes + 1):
-        C = np.sum(Ileg * z ** m)
-        K += -np.real(C * np.exp(-1j * m * theta)) / (np.pi * a_m ** (m + 1))
-    return K
-
-
 def induced_shield_currents(tpl, I_coil, t_pulse=T_PULSE, sigma=SIGMA_CU, d=D_SHIELD):
     """Physical induced eddy currents: multipole moments x thin-shell L/R
     response, sampled onto the shield points. Returns (I_shield, info dict)."""

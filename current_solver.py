@@ -198,7 +198,18 @@ if __name__ == "__main__":
     print("fitted B (T):  ", B_fit)
     print("max abs field residual (T):", np.max(np.abs(B_fit - B_target)))
 
+    # The figure below is drawn for the RESCALED currents, so report the
+    # residual at that operating point too -- otherwise the printed
+    # residual and the plotted configuration are different solutions.
+    # Normalizing preserves the field shape but not its magnitude, so the
+    # absolute residual scales with the currents while the *relative*
+    # shape error does not.
     I_free_scaled = CurrentSolver.normalize_currents(I_free, max_current=1000.0)
+    B_fit_scaled = solver.predicted_field(I_free_scaled)
+    scale = np.max(np.abs(I_free_scaled)) / np.max(np.abs(I_free))
+    print("plotted I1..I6 (normalized to 1000 A):", I_free_scaled)
+    print("max abs field residual at that operating point (T):",
+          np.max(np.abs(B_fit_scaled - scale * B_target)))
     solved_psxm = PSXMCoils(
         currents=I_free_scaled, radius=truth.radius, coil_length=truth.coil_length, start_angle=truth.start_angle,
     )

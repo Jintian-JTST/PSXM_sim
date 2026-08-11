@@ -123,8 +123,11 @@ def main():
               f"{bq*1e3:13.4f} {max(ishd, ishq):13.1f}")
 
     dip_bare, quad_bare = table[0][1], table[0][2]
-    price_dip = dip_bare / (ceil["dipole_best"] * 1e3)
-    price_quad = quad_bare / ceil["quad_best"]
+    # The report quotes the NUMERICAL ceiling (computed from the same K
+    # matrix as everything else); analytic_ceilings is kept only as a
+    # private cross-check and does not enter the document.
+    price_dip = dip_bare / lp_dip.max()
+    price_quad = quad_bare / lp_quad.max()
     print(f"\nprice of field quality (bare ring): "
           f"dipole {100*price_dip:.1f}% of ceiling, "
           f"quadrupole {100*price_quad:.1f}% of ceiling")
@@ -175,17 +178,21 @@ def main():
 
     # --- macros ------------------------------------------------------------
     write_macros("results_maxfield.tex", {
-        "MFdipceil": f"{ceil['dipole_best']*1e3:.2f}",
-        "MFdipceilw": f"{ceil['dipole_worst']*1e3:.2f}",
-        "MFquadceil": f"{ceil['quad_best']:.3f}",
-        "MFquadceilw": f"{ceil['quad_worst']:.3f}",
-        "MFripple": f"{100*(ceil['ripple']-1):.1f}",
+        "MFdipceil": f"{lp_dip.max():.2f}",
+        "MFdipceilw": f"{lp_dip.min():.2f}",
+        "MFquadceil": f"{lp_quad.max():.3f}",
+        "MFquadceilw": f"{lp_quad.min():.3f}",
+        "MFripple": f"{100*(lp_dip.max()/lp_dip.min()-1):.1f}",
         "MFdipbare": f"{dip_bare:.2f}",
         "MFquadbare": f"{quad_bare:.3f}",
         "MFpricedip": f"{100*price_dip:.0f}",
         "MFpricequad": f"{100*price_quad:.0f}",
         "MFdipdefault": f"{table[1][1]:.3f}",
         "MFquaddefault": f"{table[1][2]:.3f}",
+        # dipole field at the quadrupole optimum and at the engineering
+        # floor, used for the BL cross-check against the ASSM spec
+        "MFdipopt": f"{table[2][1]:.2f}",
+        "MFdipeng": f"{table[3][1]:.2f}",
         "MFunif": f"{100*table[0][5]:.1f}",
     })
 

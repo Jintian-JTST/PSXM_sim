@@ -1,4 +1,17 @@
 __pycache__
 .vscode
-.root
 test
+
+# ROOT files: the old rule ".root" only matched a file literally named
+# ".root", so trk20000.root was never actually ignored.
+*.root
+
+# local tooling / personal notes -- not part of the codebase
+.claude/
+.remember/
+
+# LaTeX build products, if the report is ever moved inside the repo
+*.aux
+*.log
+*.out
+*.toc

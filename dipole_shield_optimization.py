@@ -1,31 +1,32 @@
-"""dipole_shield_optimization.py -- Dipole field generation, Chi2 vs Analytical
-method comparison, and shielding parameter optimization for the PSXM.
+"""dipole_shield_optimization.py -- dipole field generation and shielding
+parameter optimization for the PSXM.
 
-This script addresses three interconnected tasks:
+Everything here uses the one method of the technical note: the weighted
+least-squares inverse solve I_shield = S @ I_coil, S = -K_s^+ K_6, from
+nulling B on sample rings radially offset from the shield.  Output =
+shield current points; input = B=0 sample locations; the system is
+deliberately over-determined, so the solve minimizes a residual rather
+than satisfying an exact null.
+
+Three parts:
 
 1. DIPOLE FIELD GENERATION
-   Solves the 6 PSXM coil currents needed to produce a uniform Bx = B0 dipole
-   field at the centre (as opposed to the quadrupole studied in the existing
-   code).
+   Solves the 6 PSXM coil currents needed to produce a uniform Bx = B0
+   dipole field at the centre (as opposed to the quadrupole studied
+   elsewhere).
 
-2. CHI2 vs ANALYTICAL METHOD DIFFERENTIATION
-   Compares two approaches for computing the shield's surface current:
-   - Chi2 (least-squares) method:  I_shield = S @ I_coil, where S = -K_s^+ K_6
-     from nulling B on sample rings radially offset from the shield (output =
-     shield current points, input = B=0 sample locations).
-   - Analytical method (ideal conductor): K_ideal(theta) from the continuous-
-     shell multipole expansion, which exactly cancels every exterior multipole
-     of the coil currents.
-   Overlay plots of K vs theta show how the LS solution converges toward the
-   analytic ideal as shield_n increases and gap_mm decreases.
+2. SHIELDING PARAMETER SCAN
+   Scans shield_n, gap_mm and n_between, reporting the redundancy of the
+   least-squares system, the achieved residual, and the leakage
+   suppression at the 0.419 m benchmark -- i.e. whether the design
+   outcome depends on the sampling layout.
 
-3. SHIELDING PARAMETER OPTIMIZATION
-   Scans shield_n, gap_mm, and n_between, reporting redundancy, achieved chi2,
-   convergence to analytic K, and leakage suppression at the 0.419 m benchmark.
-   A two-panel field/leakage figure is saved for the optimal parameter set.
+3. LEAKAGE FIGURE
+   A two-panel field/leakage figure for the dipole at the chosen
+   parameter set.
 
 Run:  python dipole_shield_optimization.py
-      (saves figures/dipole_K_ls_vs_analytic.png, figures/dipole_parameter_scan.png,
+      (saves figures/dipole_parameter_scan.png,
        figures/dipole_shield_leakage.png)
 """
 
@@ -34,10 +35,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from PSXM_coils import PSXMCoils
-from current_solver import CurrentSolver
 from shield_common import (make_template, solve_dipole_coils, ls_shield_currents,
-                           ideal_surface_K, build_pair, ring_meanB, leakage_report,
-                           shield_zero_solver, MU0, MAX_CURRENT, M_MODES,
+                           build_pair, ring_meanB, leakage_report,
+                           shield_zero_solver, MAX_CURRENT,
                            R_MAX_MM, MARKS_MM)
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) or ".")
@@ -83,125 +83,25 @@ def part1_dipole_solve():
 
 
 # ============================================================================
-# Part 2: Chi2 vs Analytical method comparison
+# Part 2: Parameter scan
 # ============================================================================
-def part2_method_comparison(I_coil):
-    """Overlay Chi2 (LS) and Analytical (ideal) shield currents vs theta."""
+def part2_parameter_scan(I_coil):
+    """Systematic scan over (shield_n, gap_mm, n_between) for the dipole.
+
+    The question this answers is not "is the solver right" but "does the
+    answer depend on how I sampled".  Redundancy = n_equations /
+    n_unknowns; chi2_rel = rms residual field at the samples relative to
+    the typical field there, which is small but non-zero precisely
+    because the system is over-determined.
+    """
     print("=" * 65)
-    print("PART 2: CHI2 vs ANALYTICAL METHOD COMPARISON")
-    print("=" * 65)
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    colors = plt.cm.viridis(np.linspace(0.3, 0.9, len(SHIELD_NS)))
-
-    # Panel (a): LS K vs theta for various shield_n
-    ax1 = axes[0, 0]
-    for sn, c in zip(SHIELD_NS, colors):
-        tpl = make_template(shield_n=sn)
-        I_s = ls_shield_currents(tpl, I_coil)
-        seg = 2 * np.pi * (tpl.shield_radius * 1e-3) / sn
-        K_ls = I_s / seg  # A/m
-        ax1.plot(tpl.shield_angles, K_ls, ".", ms=3, color=c, label=f"LS shield_n={sn}")
-
-    # Analytical reference
-    th_plot = np.linspace(0, 360, 361)
-    a_m = 27.5e-3
-    K_ideal = ideal_surface_K(np.radians(th_plot), a_m, I_coil, m_modes=M_MODES)
-    ax1.plot(th_plot, K_ideal, "k-", lw=1.8, label="analytic (ideal conductor)")
-    ax1.set_xlabel("theta (deg)")
-    ax1.set_ylabel("K (A/m)")
-    ax1.set_title("(a) Shield surface current K vs theta")
-    ax1.legend(fontsize=7, loc="best")
-    ax1.grid(alpha=0.3)
-
-    # Panel (b): convergence ratio K_LS / K_analytic vs shield_n
-    ax2 = axes[0, 1]
-    ratios = []
-    for sn in SHIELD_NS:
-        tpl = make_template(shield_n=sn)
-        I_s = ls_shield_currents(tpl, I_coil)
-        seg = 2 * np.pi * (tpl.shield_radius * 1e-3) / sn
-        K_ls = I_s / seg
-        Kan_pts = ideal_surface_K(np.radians(tpl.shield_angles), a_m, I_coil, m_modes=M_MODES)
-        ratios.append(np.max(np.abs(K_ls)) / np.max(np.abs(Kan_pts)))
-    ax2.plot(SHIELD_NS, ratios, "o-", color="C0")
-    ax2.axhline(1.0, color="k", ls="--", lw=0.8, label="perfect agreement")
-    ax2.set_xlabel("shield_n")
-    ax2.set_ylabel("peak K_LS / peak K_analytic")
-    ax2.set_title("(b) Convergence toward analytic solution")
-    ax2.legend()
-    ax2.grid(alpha=0.3)
-
-    # Panel (c): LS K vs theta for various gap_mm (fixed shield_n=200)
-    ax3 = axes[1, 0]
-    colors_g = plt.cm.plasma(np.linspace(0.3, 0.9, len(GAPS_MM)))
-    for gap, c in zip(GAPS_MM, colors_g):
-        tpl = make_template(shield_n=200)
-        I_s = ls_shield_currents(tpl, I_coil, gap_mm=gap)
-        seg = 2 * np.pi * (tpl.shield_radius * 1e-3) / 200
-        K_ls = I_s / seg
-        ax3.plot(tpl.shield_angles, K_ls, ".", ms=3, color=c, label=f"gap={gap:.0f} mm")
-    ax3.plot(th_plot, K_ideal, "k-", lw=1.8, label="analytic")
-    ax3.set_xlabel("theta (deg)")
-    ax3.set_ylabel("K (A/m)")
-    ax3.set_title("(c) LS vs analytic: gap_mm scan (shield_n=200)")
-    ax3.legend(fontsize=7, loc="best")
-    ax3.grid(alpha=0.3)
-
-    # Panel (d): chi2_rel and suppression vs gap_mm for two shield_ns
-    ax4 = axes[1, 1]
-    ax4b = ax4.twinx()
-    for sn, ls in [(100, "-"), (200, "--"), (400, ":")]:
-        ratios_s = []
-        supps = []
-        for gap in GAPS_MM:
-            tpl = make_template(shield_n=sn)
-            I_s = ls_shield_currents(tpl, I_coil, gap_mm=gap)
-            shielded = PSXMCoils(currents=I_coil, shield=True, shield_radius=tpl.shield_radius,
-                                 shield_n=sn, shield_currents=I_s)
-            unshielded = PSXMCoils(currents=I_coil)
-            bu, bs = ring_meanB(unshielded, BENCH_R_MM), ring_meanB(shielded, BENCH_R_MM)
-            supps.append(bu / bs if bs > 0 else 1e6)
-
-            # Convergence ratio
-            seg = 2 * np.pi * (tpl.shield_radius * 1e-3) / sn
-            K_ls = I_s / seg
-            Kan_pts = ideal_surface_K(np.radians(tpl.shield_angles), a_m, I_coil, m_modes=M_MODES)
-            ratios_s.append(np.max(np.abs(K_ls)) / np.max(np.abs(Kan_pts)))
-        ax4.plot(GAPS_MM, ratios_s, f"{ls}", color=f"C{list(SHIELD_NS).index(sn)}",
-                 label=f"ratio shield_n={sn}")
-        ax4b.plot(GAPS_MM, supps, f"{ls}", color=f"C{list(SHIELD_NS).index(sn)}", alpha=0.5,
-                 label=f"suppress shield_n={sn}")
-    ax4.axhline(1.0, color="k", ls=":", lw=0.5)
-    ax4.set_xlabel("sample gap (mm)")
-    ax4.set_ylabel("peak K_LS / peak K_analytic", color="C0")
-    ax4b.set_ylabel("suppression at {:.0f} mm".format(BENCH_R_MM), color="C4")
-    ax4.set_title("(d) Convergence + suppression vs gap")
-    lines_a, labels_a = ax4.get_legend_handles_labels()
-    lines_b, labels_b = ax4b.get_legend_handles_labels()
-    ax4.legend(lines_a + lines_b, labels_a + labels_b, fontsize=7, loc="best")
-    ax4.grid(alpha=0.3)
-
-    fig.tight_layout()
-    fig.savefig("figures/dipole_K_ls_vs_analytic.png", dpi=170, bbox_inches="tight")
-    print("saved figures/dipole_K_ls_vs_analytic.png\n")
-    return
-
-
-# ============================================================================
-# Part 3: Parameter scan
-# ============================================================================
-def part3_parameter_scan(I_coil):
-    """Systematic scan over (shield_n, gap_mm) for dipole."""
-    print("=" * 65)
-    print("PART 3: SHIELDING PARAMETER SCAN (DIPOLE)")
+    print("PART 2: SHIELDING PARAMETER SCAN (DIPOLE)")
     print("=" * 65)
 
     n_betweens = (1, 3, 6)
-    a_m = 27.5e-3
     rows = []
     header = (f"{'gap_mm':>7} {'n_between':>9} {'shield_n':>9} {'redund.':>8} "
-              f"{'chi2_rel':>10} {'K_LS/K_an':>10} {'suppress':>10}")
+              f"{'chi2_rel':>10} {'suppress':>10}")
     print(header)
     print("-" * len(header))
 
@@ -218,20 +118,15 @@ def part3_parameter_scan(I_coil):
                 X, *_ = np.linalg.lstsq(Ksh, K6, rcond=None)
                 I_s = (-X) @ I_coil
 
-                # Achieved chi2
+                # Achieved residual
                 resid = Ksh @ I_s + K6 @ I_coil
                 chi2 = float(np.sum(resid ** 2))
                 B_scale = float(np.max(np.abs(K6 @ I_coil)))
                 chi2_rel = float(np.sqrt(chi2 / n_eq) / B_scale) if B_scale > 0 else 0.0
 
-                # Convergence to analytic
-                seg = 2 * np.pi * a_m / sn
-                K_ls = I_s / seg
-                Kan_pts = ideal_surface_K(np.radians(tpl.shield_angles), a_m, I_coil, m_modes=M_MODES)
-                ratio = float(np.max(np.abs(K_ls)) / np.max(np.abs(Kan_pts)))
-
                 # Leakage suppression
-                shielded = PSXMCoils(currents=I_coil, shield=True, shield_radius=tpl.shield_radius,
+                shielded = PSXMCoils(currents=I_coil, shield=True,
+                                     shield_radius=tpl.shield_radius,
                                      shield_n=sn, shield_currents=I_s)
                 unshielded = PSXMCoils(currents=I_coil)
                 bu, bs = ring_meanB(unshielded, BENCH_R_MM), ring_meanB(shielded, BENCH_R_MM)
@@ -239,31 +134,28 @@ def part3_parameter_scan(I_coil):
 
                 rows.append(dict(gap_mm=gap, n_between=nb, shield_n=sn,
                                  redundancy=n_eq / n_unk, chi2_rel=chi2_rel,
-                                 ratio=ratio, suppression=supp))
+                                 suppression=supp))
                 print(f"{gap:7.1f} {nb:9d} {sn:9d} {n_eq / n_unk:8.1f} "
-                      f"{chi2_rel:10.2e} {ratio:10.3f} {supp:10.1f}")
+                      f"{chi2_rel:10.2e} {supp:10.1f}")
 
-    # Summary plots: best suppression and best ratio vs gap, for selected shield_n
     for sn in SHIELD_NS[-2:]:  # 200, 400
         rs = [r for r in rows if r["shield_n"] == sn and r["n_between"] == 3]
         if rs:
             ax1.semilogy([r["gap_mm"] for r in rs], [r["suppression"] for r in rs],
                          "o-", label=f"shield_n={sn}")
-            ax2.plot([r["gap_mm"] for r in rs], [r["ratio"] for r in rs],
-                     "o-", label=f"shield_n={sn}")
-    ax1.axhline(1e3, color="gray", ls=":", lw=0.8)
+            ax2.semilogy([r["gap_mm"] for r in rs], [r["chi2_rel"] for r in rs],
+                         "o-", label=f"shield_n={sn}")
     ax1.set_xlabel("sample gap (mm)")
     ax1.set_ylabel("suppression at {:.0f} mm".format(BENCH_R_MM))
     ax1.set_title("leakage suppression vs gap (n_between=3)")
     ax1.legend()
     ax1.grid(alpha=0.3, which="both")
 
-    ax2.axhline(1.0, color="k", ls="--", lw=0.8)
     ax2.set_xlabel("sample gap (mm)")
-    ax2.set_ylabel("peak K_LS / peak K_analytic")
-    ax2.set_title("convergence vs gap (n_between=3)")
+    ax2.set_ylabel("rms residual B / typical B")
+    ax2.set_title("achieved residual vs gap (n_between=3)")
     ax2.legend()
-    ax2.grid(alpha=0.3)
+    ax2.grid(alpha=0.3, which="both")
 
     fig.tight_layout()
     fig.savefig("figures/dipole_parameter_scan.png", dpi=150)
@@ -272,12 +164,12 @@ def part3_parameter_scan(I_coil):
 
 
 # ============================================================================
-# Part 4: Leakage figure for dipole (two-panel, like shield_common.two_panel)
+# Part 3: Leakage figure for the dipole
 # ============================================================================
-def part4_leakage_figure(I_coil):
-    """Two-panel leakage figure for the dipole case with optimized params."""
+def part3_leakage_figure(I_coil):
+    """Two-panel leakage figure for the dipole case with chosen params."""
     print("=" * 65)
-    print("PART 4: DIPOLE LEAKAGE FIGURE")
+    print("PART 3: DIPOLE LEAKAGE FIGURE")
     print("=" * 65)
 
     shield_n = 200
@@ -287,7 +179,6 @@ def part4_leakage_figure(I_coil):
     shielded, unshielded = build_pair(tpl, I_coil, I_shield)
     leakage_report(shielded, unshielded)
 
-    # Build a custom two-panel figure for the dipole case
     fig, (axf, axl) = plt.subplots(1, 2, figsize=(13.5, 6))
     shielded.draw(axf, n_grid=400, extent=R_MAX_MM / shielded.shield_radius, legend=False)
     axf.set_title(f"dipole Bx = {B0*1e3:.1f} mT  (+-{R_MAX_MM:.0f} mm)")
@@ -320,21 +211,12 @@ def part4_leakage_figure(I_coil):
 # ============================================================================
 def main():
     I_coil = part1_dipole_solve()
-    part2_method_comparison(I_coil)
-    part3_parameter_scan(I_coil)
-    part4_leakage_figure(I_coil)
+    part2_parameter_scan(I_coil)
+    part3_leakage_figure(I_coil)
 
-    print("All 4 parts complete.")
-    print("  figures/dipole_K_ls_vs_analytic.png  - Chi2 vs Analytical K overlay")
-    print("  figures/dipole_parameter_scan.png          - parameter scan results")
-    print("  figures/dipole_shield_leakage.png       - two-panel leakage figure")
-    print("\nMethod differentiation summary:")
-    print("  Chi2 (LS) method: discrete shield current points, B=0 sample")
-    print("    rings offset from shield. Output = shield currents, Input = B-field")
-    print("    sampling locations. Over-determined -> minimized chi2, not exact null.")
-    print("  Analytical (ideal conductor): continuous surface current from multipole")
-    print("    expansion. Exactly cancels all exterior coil multipoles. Same output")
-    print("    format (K in A/m) for direct overlay comparison.")
+    print("All 3 parts complete.")
+    print("  figures/dipole_parameter_scan.png   - parameter scan results")
+    print("  figures/dipole_shield_leakage.png   - two-panel leakage figure")
 
 
 if __name__ == "__main__":

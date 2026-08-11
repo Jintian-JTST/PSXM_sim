@@ -57,13 +57,15 @@ from shield_common import (G, MAX_CURRENT, shield_zero_solver, build_pair,
 from node5_common import (multipoles, length_factor, validity_radius,
                           FiniteCoils, RADIUS, save_fig, write_macros)
 
-LENGTHS = np.array([20.0, 30.0, 45.0, 65.0, 90.0, 130.0, 200.0,
+LENGTHS = np.array([20.0, 30.0, 45.0, 65.0, 90.0, 130.0, 164.0, 200.0,
                     300.0, 500.0, 1000.0])          # mm
+L_REF = 164.0        # mm, the designed length of the inner-ASSM (Abe 2022);
+                     # used as the representative length quoted in the report
 L_2D = 1.0e9                                        # mm, stands in for infinity
 RHO_MARKS = (RADIUS, 100.0, 419.0)                  # mm, the reported distances
 SHIELD_N_SCAN = 120                                 # cheaper discretization for the R_s scan
 R_SCAN = np.arange(23.0, 42.0, 0.5)                 # mm
-L_FOR_RSCAN = (65.0, 130.0, 300.0, L_2D)            # mm
+L_FOR_RSCAN = (100.0, L_REF, 300.0, L_2D)           # mm
 
 
 # --------------------------------------------------------------------------
@@ -252,14 +254,15 @@ def main():
     save_fig(fig, "node5_edge_effects.png")
 
     # --- macros ---------------------------------------------------------------
-    e65 = dict(rows)[65.0]
+    eref = dict(rows)[L_REF]
     write_macros("results_edge.tex", {
-        "EEfcentre": f"{length_factor(RADIUS, 65.0):.3f}",
-        "EEfhundred": f"{length_factor(100.0, 65.0):.3f}",
-        "EEffar": f"{length_factor(419.0, 65.0):.4f}",
-        "EEgrel": f"{e65['Gmag']/ref['Gmag']:.3f}",
-        "EEleak": f"{e65['leak419']:.4f}",
-        "EEsupp": f"{e65['supp419']:.0f}",
+        "EEL": f"{L_REF:.0f}",
+        "EEfcentre": f"{length_factor(RADIUS, L_REF):.3f}",
+        "EEfhundred": f"{length_factor(100.0, L_REF):.3f}",
+        "EEffar": f"{length_factor(419.0, L_REF):.4f}",
+        "EEgrel": f"{eref['Gmag']/ref['Gmag']:.3f}",
+        "EEleak": f"{eref['leak419']:.4f}",
+        "EEsupp": f"{eref['supp419']:.0f}",
         "EEsupptwod": "\\num{%.1e}" % ref["supp419"],
         "EEspread": f"{spread:.2f}",
         "EEropt": " / ".join(f"{o[1]:.2f}" for o in opts),
