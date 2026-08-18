@@ -80,6 +80,22 @@ def shield_zero_solver(tpl, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_between=N
     return solver
 
 
+def net_current_fraction(I):
+    """|sum(I)| / sum|I|: how far a current vector is from zero net current.
+
+    The exact exterior cancellation of the ideal two-dimensional shell
+    (Sec. 2.4 of the report) requires the enclosed axial current to have
+    zero net value, for the coil legs by construction and for the solved
+    shield sheet as a numerical property.  The plain least-squares solve
+    carries no equality constraint for this; the check below reports how
+    well the solution satisfies it anyway.
+    """
+    denom = float(np.sum(np.abs(I)))
+    if denom == 0.0:
+        return 0.0
+    return float(np.abs(np.sum(I))) / denom
+
+
 def ls_shield_currents(tpl, I_coil, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_between=N_BETWEEN):
     """Least-squares response shield currents I_s = S @ I_coil,
     S = -K_s^+ K_6 from nulling B on the offset rings."""
@@ -87,7 +103,16 @@ def ls_shield_currents(tpl, I_coil, gap_mm=SAMPLE_GAP_MM, outer_mm=OUTER_MM, n_b
           @ tpl.group_matrix())
     K6, Ksh = KM[:, :PSXMCoils.N_COILS], KM[:, PSXMCoils.N_COILS:]
     X, *_ = np.linalg.lstsq(Ksh, K6, rcond=None)
-    return (-X) @ I_coil
+    I_sh = (-X) @ I_coil
+    eps_I = net_current_fraction(I_sh)
+    # 1e-5 relative net current is still far below every reported exterior
+    # residual; the threshold only guards against a genuinely unbalanced
+    # sheet (e.g. a broken sampling layout).
+    if eps_I > 1e-5:
+        print(f"[ls_shield_currents] WARNING: shield net-current fraction "
+              f"eps_I = {eps_I:.2e} exceeds 1e-5; the exact-cancellation "
+              f"argument of the report does not apply to this solution.")
+    return I_sh
 
 
 def induced_shield_currents(tpl, I_coil, t_pulse=T_PULSE, sigma=SIGMA_CU, d=D_SHIELD):

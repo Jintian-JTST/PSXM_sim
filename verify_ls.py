@@ -1,10 +1,8 @@
 """verify_ls.py -- validate the least-squares shield calculation.
 
-Three tests, all of which check the solver against *itself* or against
-the field routine it is built from.  There is deliberately no comparison
-against an external analytic model: the question these tests answer is
-"is the numerical method implemented correctly", and that is settled by
-round-trip and consistency checks, not by agreement with a second model.
+Three of the tests check the solver against *itself* or against the field
+routine it is built from; the fourth checks it against the analytic
+ideal-shell solution of the report's Sec. 2.4.
 
 T1 round-trip   : known currents -> field at samples -> LS solve -> must
                   recover the currents exactly (code correctness).
@@ -13,6 +11,9 @@ T2 forward check: K @ I  vs  PSXMCoils.B_field at the same points (the
                   precision).
 T3 conditioning : cond(K_shield) and the singular-value spread of the
                   shield response problem (is it well-posed?).
+T4 analytic     : the multipole reduction of an ideal cylindrical shell,
+                  F_m(R_s) = F_bare [1 - (R/R_s)^(2m)], must be reproduced
+                  by the LS solve (external analytic cross-check).
 
 Run:  python verify_ls.py     (prints a PASS/FAIL summary)
 """
@@ -21,7 +22,10 @@ import numpy as np
 
 from PSXM_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import shield_zero_solver
+from shield_common import (shield_zero_solver, solve_quad_coils,
+                           solve_dipole_coils, ls_shield_currents,
+                           build_pair)
+from node5_common import multipoles
 
 I_COIL = 1000.0
 SAMPLE_GAP_MM = 5.0      # radial gap between shield currents and B=0 samples
@@ -94,7 +98,52 @@ def t3_conditioning():
     return True
 
 
+def t4_analytic_ideal_shell():
+    """LS shield solve must reproduce the analytic ideal-shell multipole
+    reduction F_m(R_s) = F_bare * [1 - (R/R_s)^(2m)] (report Sec. 2.4).
+
+    This is the cross-check against an external analytic model that the
+    other tests deliberately avoid: the bare ring numbers are the m = 1
+    (dipole) and m = 2 (quadrupole) multipole amplitudes measured by the
+    same fitting convention the report uses, and the shield radius enters
+    only through the analytic factor.
+    """
+    R, Rs = 22.5, 27.5
+    bare = PSXMCoils(currents=np.zeros(6))
+
+    # bare-ring multipole amplitudes, measured with the report's convention
+    dip_bare = multipoles(PSXMCoils(
+        currents=solve_dipole_coils(bare)))["B0mag"] * 1e3
+    quad_bare = multipoles(PSXMCoils(
+        currents=solve_quad_coils(bare)))["Gmag"] * 1e3
+
+    # analytic predictions
+    dip_ana = dip_bare * (1 - (R / Rs) ** 2)
+    quad_ana = quad_bare * (1 - (R / Rs) ** 4)
+
+    # numerical: same solves the report uses, normalized to 1000 A
+    Iq = solve_quad_coils(bare)             # normalized inside
+    Id = solve_dipole_coils(bare)
+    tpl = PSXMCoils(currents=np.zeros(6), shield=True,
+                    shield_radius=Rs, shield_n=200)
+    Iq_sh = solve_quad_coils(tpl)
+    Id_sh = solve_dipole_coils(tpl)
+    oq, _ = build_pair(tpl, Iq_sh, ls_shield_currents(tpl, Iq_sh))
+    od, _ = build_pair(tpl, Id_sh, ls_shield_currents(tpl, Id_sh))
+    dip_num = multipoles(od)["B0mag"] * 1e3
+    quad_num = multipoles(oq)["Gmag"] * 1e3
+
+    ok = (abs(dip_num - dip_ana) / dip_ana < 1e-3
+          and abs(quad_num - quad_ana) / quad_ana < 1e-3)
+    print(f"T4 analytic ideal shell : dipole  {dip_num:.4f} vs analytic "
+          f"{dip_ana:.4f} mT   {'PASS' if ok else 'FAIL'}")
+    print(f"                         quadrupole {quad_num:.4f} vs analytic "
+          f"{quad_ana:.4f} mT/mm")
+    return ok
+
+
 if __name__ == "__main__":
     t1_roundtrip()
     t2_forward()
     t3_conditioning()
+    t4_analytic_ideal_shell()
