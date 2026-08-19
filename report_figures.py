@@ -84,17 +84,12 @@ def fig_capability(opt):
     ls_dip = np.array(ls_dip)
 
     phi_deg = psi_deg / 2.0                     # mechanical roll angle
-    tpl_sh = PSXMCoils(currents=np.zeros(6), shield=True,
-                       shield_radius=SHIELD_RADIUS, shield_n=SHIELD_N)
-    S = ls_shield_response(tpl_sh)
-    ls_quad, ls_quad_sh = [], []
+    ls_quad = []
     for p in phi_deg:
         I = solve_rot_quad(bare, p)
         I = I * (MAX_CURRENT / np.max(np.abs(I)))
         ls_quad.append(multipoles(PSXMCoils(currents=I))["Gmag"] * 1e3)
-        sh, _ = build_pair(tpl_sh, I, S @ I)
-        ls_quad_sh.append(multipoles(sh)["Gmag"] * 1e3)
-    ls_quad, ls_quad_sh = np.array(ls_quad), np.array(ls_quad_sh)
+    ls_quad = np.array(ls_quad)
 
     # achieved field at 1000 A for the bare ring and three shield radii
     cases = [(None, "bare ring"), (27.5, "27.5 mm"),
@@ -134,8 +129,6 @@ def fig_capability(opt):
                label="box-constrained maximum")
     ax[1].plot(phi_deg, ls_quad, color=COL_LS, lw=1.6,
                label="least-squares design, bare ring")
-    ax[1].plot(phi_deg, ls_quad_sh, color=COL_SH, lw=1.6,
-               label=rf"with shield, $R_s$ = {SHIELD_RADIUS:g} mm")
     ax[1].axhline(G_REQ, color=COL_REQ, ls=":", lw=1.2,
                   label=f"{G_REQ:g} mT/mm working benchmark")
     ax[1].set_xlabel(r"Roll angle $\varphi$ (deg)")
@@ -245,6 +238,7 @@ def fig_rot_quad():
                 absorb=100 * (1 - Gsh.max() / Gbare[imax]),
                 angerr=max(np.max(np.abs(ang)), np.max(np.abs(ang_sh))),
                 purity=max(purity.max(), purity_sh.max()),
+                purity_bare=purity[0],       # bare-ring quadrupole at phi=0
                 ishmax=Ishmax.max())
 
 
@@ -317,7 +311,6 @@ def fig_sampling():
     gaps = (1.0, 2.0, 5.0, 10.0, 20.0)
     nbs = (1, 3, 6)
     Ns_cases = (100, 200)
-    NOISE = 1e-12       # uT, double-precision floor of the cancellation
 
     res = {}
     for Ns in Ns_cases:
@@ -334,7 +327,7 @@ def fig_sampling():
                 leak = ring_meanB(sh, DIAG[1]) * 1e6
                 bare = ring_meanB(un, DIAG[1]) * 1e6
                 K = float(np.max(np.abs(Ish))) * Ns / (2 * np.pi * SHIELD_RADIUS)
-                row.append((gap, G, K, max(leak, NOISE), bare))
+                row.append((gap, G, K, leak, bare))
             res[(Ns, nb)] = np.array(row)
 
     # third panel: the exterior residual against the shield discretization.
@@ -353,7 +346,7 @@ def fig_sampling():
             Ish = ls_shield_currents(tpl, Ic, gap_mm=dr, outer_mm=dr / 2.0,
                                      n_between=3)
             sh, _ = build_pair(tpl, Ic, Ish)
-            row.append(max(ring_meanB(sh, DIAG[1]) * 1e6, NOISE))
+            row.append(ring_meanB(sh, DIAG[1]) * 1e6)   # unclamped residual
         disc[dr] = np.array(row)
 
     fig, ax = plt.subplots(1, 3, figsize=(16, 4.8))
@@ -377,7 +370,8 @@ def fig_sampling():
     for dr, mk in ((5.0, "o"), (20.0, "s")):
         ax[2].loglog(Ns_series, disc[dr], marker=mk, ms=4.5, lw=1.4,
                      label=rf"$\Delta r$ = {dr:g} mm")
-    ax[2].axhline(NOISE, color="0.5", lw=1.0, label="double-precision floor")
+    ax[2].axhline(1e-12, color="0.5", lw=1.0, ls="--",
+                 label="reference 1e-12 $\mu$T (float-precision scale)")
     ax[2].set_xlabel(r"Shield discretization $N_s$")
     ax[2].set_ylabel(r"Residual field at 419 mm ($\mu$T)")
     ax[2].set_title("(c) Exterior residual versus shield discretization",
@@ -485,7 +479,7 @@ def fig_selection(q, d, opt):
         ax[0].axvline(x, color=c, ls=":", lw=1.1)
     ax[0].text(0.03, 0.97, "threshold $R_s$:\n"
                + f"  dipole, 1 mT        {Rd:.3f} mm\n"
-               + f"  dipole, $BL$ ($L_\\mathrm{{eff}}$=0.1 m)  {Rbl:.3f} mm\n"
+               + f"  dipole, $BL$ ($L_\\mathrm{{eff}}$=0.1 m)  {Rbl:.1f} mm\n"
                + f"  quadrupole        {Rq:.3f} mm",
                transform=ax[0].transAxes, va="top", fontsize=7.5,
                bbox=dict(fc="white", ec="0.7", alpha=0.9))
@@ -496,7 +490,8 @@ def fig_selection(q, d, opt):
                        lw=1.5, label=rf"$\Delta r$ = {dr} mm")
     ax[1].axhline(LEAK_REQ, color=COL_REQ, ls="-.", lw=1.4,
                   label=r"$1\ \mu$T level (for scale)")
-    ax[1].axhline(1e-12, color="0.5", lw=1.0, label="double-precision floor")
+    ax[1].axhline(1e-12, color="0.5", lw=1.0, ls="--",
+                 label="reference 1e-12 $\mu$T (float-precision scale)")
     ax[1].axvline(Rq, color=COL_LS, ls=":", lw=1.2)
     ax[1].set_ylabel(r"Residual field at 419 mm ($\mu$T)")
     ax[1].set_title("(b) Exterior residual for alternative sampling layouts",
@@ -589,9 +584,7 @@ def main():
 
     write_macros("results_scan.tex", {
         "MFdipceil": f"{cap['lp_dip_max']:.2f}",
-        "MFdipceilw": f"{cap['lp_dip_min']:.2f}",
         "MFquadceil": f"{cap['lp_quad_max']:.3f}",
-        "MFquadceilw": f"{cap['lp_quad_min']:.3f}",
         "MFripple": f"{cap['ripple']:.1f}",
         "MFdipbare": f"{cap['dip_bare']:.2f}",
         "MFquadbare": f"{cap['quad_bare']:.3f}",
@@ -600,17 +593,22 @@ def main():
         "MFquadripplefrac": f"{100*cap['quad_bare']/cap['lp_quad_max']:.0f}",
         "MFdipdefault": f"{cap['got'][1][1]:.3f}",
         "MFquaddefault": f"{cap['got'][1][2]:.3f}",
-        "MFdipopt": f"{cap['got'][2][1]:.2f}",
+        # central-field change when the shield is added (bare ring -> default
+        # Rs = 27.5 mm), at the same 1000 A operating point
+        "SHdipratio": f"{cap['got'][0][1] / cap['got'][1][1]:.2f}",
+        "SHquadratio": f"{cap['got'][0][2] / cap['got'][1][2]:.2f}",
+        "SHdipred": f"{100 * (1 - cap['got'][1][1] / cap['got'][0][1]):.1f}",
+        "SHquadred": f"{100 * (1 - cap['got'][1][2] / cap['got'][0][2]):.1f}",
         "MFdipeng": f"{cap['got'][3][1]:.2f}",
         "MFunif": f"{cap['unif10']:.1f}",
         "RQlinres": "\\num{%.1e}" % rq["lin_err"],
         "RQgmax": f"{rq['gmax']:.3f}", "RQgmin": f"{rq['gmin']:.3f}",
-        "RQphimax": f"{rq['phimax']:.1f}", "RQphimin": f"{rq['phimin']:.1f}",
         "RQripple": f"{rq['ripple']:.1f}",
         "RQgshmax": f"{rq['gshmax']:.3f}", "RQgshmin": f"{rq['gshmin']:.3f}",
         "RQabsorb": f"{rq['absorb']:.0f}",
         "RQangerr": "\\num{%.1e}" % rq["angerr"],
         "RQpurity": "\\num{%.1e}" % rq["purity"],
+        "RQpuritybare": "\\num{%.1e}" % rq["purity_bare"],
         "RQishmax": f"{rq['ishmax']:.0f}",
         "RQishsheet": f"{rq['ishmax'] * SHIELD_N / (2 * np.pi * SHIELD_RADIUS):.0f}",
         "RQshieldradius": f"{SHIELD_RADIUS:g}",
@@ -621,7 +619,6 @@ def main():
         "LKquadfar": "\\num{%.1e}" % lq["leakfar"],
         "LKdipnear": "\\num{%.1e}" % ld["leaknear"],
         "LKdipfar": "\\num{%.1e}" % ld["leakfar"],
-        "LKminradius": "23.2",
         "SPK": f"{sp['Kbase']:.0f}",
         "SPsupprlo": "\\num{%.0e}" % sp["suppr_lo"],
         "SPsupprhi": "\\num{%.0e}" % sp["suppr_hi"],

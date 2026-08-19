@@ -277,7 +277,6 @@ def write_macros(fname="results_robust.tex"):
         "RBthrlist": ", ".join("%.3f" % thr[d] for d in (2.0, 5.0, 10.0, 20.0)),
         "RBthrspread": "%.3f" % (max(thr.values()) - min(thr.values())),
         "RBleaklo": sci(disc[0]["leak"]), "RBleakhi": sci(disc[-1]["leak"]),
-        "RBsupprlo": sci(disc[0]["suppr"]), "RBsupprhi": sci(disc[-1]["suppr"]),
         "RBnslo": "%d" % disc[0]["Ns"], "RBnshi": "%d" % disc[-1]["Ns"],
         "RBfluxfree": sci(fx["freespace"]), "RBfluxbn": "%.2f" % fx["bn"],
     }

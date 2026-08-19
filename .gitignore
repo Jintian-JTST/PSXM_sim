@@ -15,3 +15,7 @@ test
 *.log
 *.out
 *.toc
+
+# weekly deliverables / large binaries -- kept locally, not versioned
+weekly_report_*.pptx
+weekly_report_*.html

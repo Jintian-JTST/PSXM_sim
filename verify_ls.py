@@ -29,7 +29,7 @@ from node5_common import multipoles
 
 I_COIL = 1000.0
 SAMPLE_GAP_MM = 5.0      # radial gap between shield currents and B=0 samples
-OUTER_MM = 5.0
+OUTER_MM = 2.0
 N_BETWEEN = 3
 
 
