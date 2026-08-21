@@ -67,10 +67,13 @@ A, field in Tesla**, magnetic vector potential `A_z` in T*m.
   `predicted_field()` / `to_coils()` given the same `I_free` always stay
   consistent with what was actually solved).
 
-- **`example.py`** — end-to-end demo: solves jointly for the 6 PSXM coil
-  currents *and* 100 shield-can currents (106 unknowns), requiring a
-  quadrupole field near the center and near-zero field on/just outside the
-  shield can, then plots the result.
+- **`report_*.py`** — analysis scripts that produce the numbers and
+  figures of the accompanying design report (`report_scan.py` runs the
+  shield-radius scan, `report_figures.py` draws the figures,
+  `report_robust.py` / `report_background.py` supply the convergence and
+  field-quality data); see Appendix A of the report for the mapping.
+- **`shield_common.py`** — shield-current solve and response machinery
+  shared by the analysis scripts.
 
 ### Quick start
 
@@ -92,7 +95,8 @@ solved = PSXMCoils(currents=I_free, radius=psxm.radius, coil_length=psxm.coil_le
 solved.plot(path="solved.png")
 ```
 
-Run `python example.py` for the full shield + solver walkthrough.
+Run `python report_scan.py && python report_figures.py` from the
+repository root to reproduce the report's numbers and figures.
 
 ### Known limitations
 
@@ -105,7 +109,7 @@ Run `python example.py` for the full shield + solver walkthrough.
 - Jointly fitting targets at very different physical scales (e.g. a small
   quadrupole target vs. a much larger natural field near a shield) is a
   real trade-off, not a solver bug — use `add_sample_point(..., weight=)`
-  to balance it (see the comments in `example.py`).
+  to balance it (see the comments in `current_solver.py`).
 
 ---
 
@@ -145,8 +149,10 @@ Run `python example.py` for the full shield + solver walkthrough.
   传给 `predicted_field()` / `to_coils()`，结果就始终和实际求解出的解一致，不会因为反复调用而
   悄悄解出不同的电流）。
 
-- **`example.py`** —— 完整示例：联合求解 6 个 PSXM 线圈电流和 100 个屏蔽层电流（共 106 个
-  未知量），要求中心处为四极场，且屏蔽层表面及外侧附近场接近零，最后画图展示结果。
+- **`report_*.py`** —— 生成随附设计报告数字与图表的分析脚本（`report_scan.py` 跑屏蔽半径扫描、
+  `report_figures.py` 绘图、`report_robust.py` / `report_background.py` 提供收敛与场品质数据）；
+  脚本与报告的对应关系见报告附录 A。
+- **`shield_common.py`** —— 分析脚本共享的屏蔽电流求解与响应机制。
 
 ### 快速上手
 
@@ -168,7 +174,7 @@ solved = PSXMCoils(currents=I_free, radius=psxm.radius, coil_length=psxm.coil_le
 solved.plot(path="solved.png")
 ```
 
-运行 `python example.py` 查看包含屏蔽层的完整求解流程。
+在仓库根目录运行 `python report_scan.py && python report_figures.py` 可复现报告的数值与图。
 
 ### 已知局限
 
@@ -177,4 +183,4 @@ solved.plot(path="solved.png")
   "尽力而为"的近似（详见类的 docstring）；如果和实际硬件对不上，可以调整 `start_angle` 或正负号约定。
 - 同时拟合物理尺度差异很大的目标（比如很小的中心四极场 vs. 屏蔽层附近大得多的自然场）本身
   是一个真实的权衡取舍，不是求解器的 bug——用 `add_sample_point(..., weight=)` 来平衡
-  （可参考 `example.py` 里的注释）。
+  （可参考 `current_solver.py` 里的注释）。
