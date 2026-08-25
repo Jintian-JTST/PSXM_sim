@@ -171,7 +171,7 @@ class CurrentSolver:
 
 
 if __name__ == "__main__":
-    from PSXM_coils import PSXMCoils
+    from psxm_coils import PSXMCoils
 
     truth = PSXMCoils(currents=[729.3, 1000, 270.7, -729.3, -1000, -270.7])
 

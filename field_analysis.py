@@ -1,14 +1,14 @@
-"""node5_common.py -- shared helpers for the node-5 studies.
+"""field_analysis.py -- multipole analysis helpers shared by the report scripts.
 
-The three node-5 questions (rotational quadrupole, maximum reachable
-field, 2D -> 3D edge effects) all need the same two primitives, so they
-live here rather than being re-derived in each script:
+The field-capability, rotational-quadrupole and shield-radius analyses
+all need the same primitives, so they live here rather than being
+re-derived in each script:
 
   * ``multipoles()`` -- given any ``Coils``-like object, measure what
     field it actually makes near the centre by fitting the dipole and
     quadrupole (normal + skew) content on a small sampling ring.  Every
     "achieved field" number in the report comes from this one function,
-    so the three studies are on the same footing.
+    so the analyses are all on the same footing.
 
   * ``analytic_ceilings()`` / ``unit_response()`` -- the closed-form and
     numerical hardware ceilings of the six-coil ring.  ``multipoles`` of
@@ -43,13 +43,12 @@ import matplotlib
 matplotlib.use("Agg")           # batch scripts: always save, never show
 import matplotlib.pyplot as plt
 
-from coils import Coils, MU0
-from PSXM_coils import PSXMCoils
+from coils import MU0
+from psxm_coils import PSXMCoils, RADIUS_MM, COIL_LENGTH_MM
+from config import MAX_CURRENT
 
-# --- geometry / hardware defaults (kept in sync with PSXM_coils.py) --------
-RADIUS = 22.5          # mm, coil-ring radius
-COIL_LENGTH = 20.0     # mm, chord between a coil's two legs
-MAX_CURRENT = 1000.0   # A, hardware current budget per coil
+RADIUS = RADIUS_MM      # mm, coil-ring radius (canonical geometry)
+COIL_LENGTH = COIL_LENGTH_MM  # mm, chord between a coil's two legs
 
 REPORT_DIR = os.path.join("..", "PSXM_design_report")
 FIG_DIRS = ("figures", os.path.join(REPORT_DIR, "figures"))
@@ -194,60 +193,6 @@ def lp_ceiling(cols, psi, max_current=MAX_CURRENT):
     n = np.stack([np.cos(psi), np.sin(psi)], axis=-1)        # (m, 2)
     proj = n @ cols.T                                         # (m, 6)
     return max_current * np.sum(np.abs(proj), axis=-1)
-
-
-# ==========================================================================
-# finite-length (2.5D) correction -- used by node5_edge_effects.py
-# ==========================================================================
-def length_factor(rho_mm, length_mm):
-    """Mid-plane field of a finite straight segment / that of an infinite wire.
-
-    A segment of length L centred on the mid-plane produces, at
-    perpendicular distance rho in that plane,
-
-        B = (mu0 I / 2 pi rho) * (L/2) / sqrt(rho^2 + (L/2)^2)
-
-    so the correction to the infinite-wire model is exactly
-    f = [1 + (2 rho / L)^2]^{-1/2}.  It is always < 1: the 2D model
-    always *overestimates*, and increasingly so with distance.
-    """
-    return 1.0 / np.sqrt(1.0 + (2.0 * np.asarray(rho_mm, dtype=float)
-                                / float(length_mm)) ** 2)
-
-
-def validity_radius(length_mm, tol=0.10):
-    """Radius out to which the 2D model is accurate to within ``tol``.
-
-    From f >= 1 - tol: rho <= (L/2) sqrt((1-tol)^-2 - 1).  For tol = 10%
-    this is rho <~ L/4.
-    """
-    return 0.5 * length_mm * np.sqrt((1.0 - tol) ** -2 - 1.0)
-
-
-class FiniteCoils(Coils):
-    """A ``Coils`` whose wires are finite segments of length ``length`` (mm).
-
-    Only valid in the mid-plane, where the correction is the exact
-    ``length_factor`` above applied per wire.  It models the truncation
-    of the straight legs; it does *not* model the field of the end turns
-    that close the circuit, which is the remaining genuinely-3D piece.
-    """
-
-    def __init__(self, base, length):
-        super().__init__(x=base.x, y=base.y, I=base.I)
-        self.length = float(length)
-
-    def B_field(self, x, y, min_distance=1e-6):
-        dx = (x - self.x) * 1e-3
-        dy = (y - self.y) * 1e-3
-        rho2 = dx ** 2 + dy ** 2
-        if np.any(rho2 < (min_distance * 1e-3) ** 2):
-            raise ValueError("Field point coincides with a coil position")
-        L = self.length * 1e-3
-        f = 1.0 / np.sqrt(1.0 + (4.0 * rho2) / (L ** 2))
-        Bx = np.sum(-MU0 * self.I * f * dy / (2 * np.pi * rho2))
-        By = np.sum(MU0 * self.I * f * dx / (2 * np.pi * rho2))
-        return np.array([Bx, By])
 
 
 # ==========================================================================

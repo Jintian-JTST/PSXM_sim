@@ -15,11 +15,11 @@ Run:  python report_scan.py        (writes scan_1000A.npz, prints the table)
 
 import numpy as np
 
-from PSXM_coils import PSXMCoils
-from shield_common import (SHIELD_N, solve_quad_coils, solve_dipole_coils,
+from psxm_coils import PSXMCoils
+from shield import (SHIELD_N, solve_quad_coils, solve_dipole_coils,
                            ls_shield_currents, build_pair, ring_meanB,
                            net_current_fraction)
-from node5_common import multipoles
+from field_analysis import multipoles
 
 MAX_CURRENT = 1000.0
 G_REQ = 1.0          # mT/mm, quadrupole working benchmark

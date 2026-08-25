@@ -23,11 +23,11 @@ Run:  python report_robust.py     (writes robust_scan.npz, prints a summary)
 
 import numpy as np
 
-from PSXM_coils import PSXMCoils
+from psxm_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import (SHIELD_N, solve_quad_coils, build_pair, ring_meanB,
+from shield import (SHIELD_N, solve_quad_coils, build_pair, ring_meanB,
                            shield_zero_solver)
-from node5_common import multipoles
+from field_analysis import multipoles
 
 MAX_CURRENT = 1000.0
 G_REQ = 1.0            # mT/mm
@@ -266,7 +266,7 @@ def flux_exclusion_check(R_s=27.5, Ns=SHIELD_N, n=4096, mmax=4):
 
 def write_macros(fname="results_robust.tex"):
     import os
-    from node5_common import REPORT_DIR
+    from field_analysis import REPORT_DIR
     os.makedirs(REPORT_DIR, exist_ok=True)
     thr = {dr: threshold_bisect(dr, dr / 2.0) for dr in (2.0, 5.0, 10.0, 20.0)}
     disc = discretization_series()

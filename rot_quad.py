@@ -1,4 +1,4 @@
-"""node5_rot_quad.py -- rotational quadrupole for the PSXM (node 5, task 4 extension).
+"""rot_quad.py -- rotational quadrupole for the PSXM.
 
 Question: the PSXM must be able to present a quadrupole field at an
 arbitrary roll angle phi about the beam axis.  Can the six-coil ring do
@@ -28,19 +28,19 @@ Three things are established here.
     itself a fixed linear map, so the shielded solution rotates the same
     way; only the absolute achievable gradient is reduced.
 
-Run:  python node5_rot_quad.py
-Outputs: figures/node5_rot_quad_scan.png, figures/node5_rot_quad_fields.png,
+Run:  python rot_quad.py
+Outputs: figures/rot_quad_study.png, figures/rot_quad_study_fields.png,
          ../PSXM_design_report/results_rotquad.tex
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from PSXM_coils import PSXMCoils
+from psxm_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import (G, MAX_CURRENT, SHIELD_N, shield_zero_solver,
+from shield import (G, MAX_CURRENT, SHIELD_N, shield_zero_solver,
                            build_pair)
-from node5_common import (multipoles, analytic_ceilings, unit_response,
+from field_analysis import (multipoles, analytic_ceilings, unit_response,
                           lp_ceiling, save_fig, write_macros)
 
 PHI = np.arange(0.0, 90.0 + 1e-9, 1.0)          # deg, commanded roll angle
@@ -52,7 +52,7 @@ def solve_rot_quad(tpl, phi_deg, gradient=G):
     """Coil currents (A, unnormalized) for a quadrupole rolled by phi_deg.
 
     Target on the 1 mm ring, in the same convention as
-    ``shield_common.solve_quad_coils`` but with the quadrupole axes
+    ``shield.solve_quad_coils`` but with the quadrupole axes
     rotated mechanically by phi:
 
         Bx = G (y cos 2phi - x sin 2phi),   By = G (x cos 2phi + y sin 2phi).
@@ -76,7 +76,7 @@ def solve_rot_quad(tpl, phi_deg, gradient=G):
 def shield_response(tpl):
     """The response matrix S of Eq. (S = -K_s^+ K_6), computed once.
 
-    ``shield_common.ls_shield_currents`` rebuilds this for every call,
+    ``shield.ls_shield_currents`` rebuilds this for every call,
     which is wasteful here: S depends only on the geometry, so for a
     scan over roll angle it is computed once and reused.  Doing so also
     makes the point of the section concrete -- the shield's response to a
@@ -191,7 +191,7 @@ def main():
     fig.suptitle("Rotational quadrupole: the six-coil ring rolls the field "
                  "continuously at a 15.5% amplitude ripple")
     fig.tight_layout()
-    save_fig(fig, "node5_rot_quad_scan.png")
+    save_fig(fig, "rot_quad_study.png")
 
     # field-line panels
     fig2, axs = plt.subplots(2, 2, figsize=(11, 11))
@@ -207,7 +207,7 @@ def main():
                     f"measured {m['phideg']:.1f}$^\\circ$)", fontsize=10)
     fig2.suptitle("Rotated quadrupole with shield, all at the 1000 A operating point")
     fig2.tight_layout()
-    save_fig(fig2, "node5_rot_quad_fields.png")
+    save_fig(fig2, "rot_quad_study_fields.png")
 
     # --- macros for the report -------------------------------------------
     write_macros("results_rotquad.tex", {

@@ -1,7 +1,7 @@
 """report_figures.py -- the figures as they appear in the design report.
 
-This script supersedes the plotting sections of node5_max_field.py,
-node5_rot_quad.py, chi2_scan.py, shield2D.py, dipole_shield_optimization.py
+This script supersedes the plotting sections of field_capability.py,
+rot_quad.py, chi2_scan.py, shield2D.py, dipole_shield_optimization.py
 and optimize_shield_radius.py.  The physics is unchanged -- every number
 still comes from those modules -- but the presentation follows four rules
 that the earlier figures broke in places:
@@ -26,15 +26,15 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from PSXM_coils import PSXMCoils
-from shield_common import (SHIELD_N, solve_quad_coils, solve_dipole_coils,
+from psxm_coils import PSXMCoils
+from shield import (SHIELD_N, solve_quad_coils, solve_dipole_coils,
                            ls_shield_currents, build_pair, ring_meanB,
                            R_MAX_MM, net_current_fraction)
-from node5_common import (multipoles, uniformity, unit_response, lp_ceiling,
+from field_analysis import (multipoles, uniformity, unit_response, lp_ceiling,
                           analytic_ceilings, save_fig, write_macros)
-from node5_max_field import solve_rot_dipole
-from node5_rot_quad import solve_rot_quad
-from node5_rot_quad import shield_response as ls_shield_response
+from field_capability import solve_rot_dipole
+from rot_quad import solve_rot_quad
+from rot_quad import shield_response as ls_shield_response
 
 MAX_CURRENT = 1000.0
 G_REQ = 1.0        # mT/mm (working benchmark, not a published specification)
@@ -523,7 +523,7 @@ def latex_table(qt, dt, fname="table_scan.tex"):
     to the rows does not.
     """
     import os
-    from node5_common import REPORT_DIR
+    from field_analysis import REPORT_DIR
     os.makedirs(REPORT_DIR, exist_ok=True)
 
     def sci(v):

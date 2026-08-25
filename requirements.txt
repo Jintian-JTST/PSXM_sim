@@ -1,0 +1,3 @@
+numpy
+matplotlib
+uproot  # only needed for tracker/analyze_track.py (report Figure 1)

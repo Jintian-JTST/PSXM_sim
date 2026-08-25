@@ -44,10 +44,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from PSXM_coils import PSXMCoils
+from psxm_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import SHIELD_N, MAX_CURRENT, ls_shield_currents, build_pair
-from node5_common import multipoles, save_fig, write_macros
+from shield import SHIELD_N, MAX_CURRENT, ls_shield_currents, build_pair
+from field_analysis import multipoles, save_fig, write_macros
 
 G_REQ = 1.0          # mT/mm, quadrupole working benchmark
 B_REQ = 1.0          # mT, dipole working benchmark (central field)

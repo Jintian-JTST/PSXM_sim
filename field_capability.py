@@ -1,4 +1,4 @@
-"""node5_max_field.py -- maximum reachable central field of the PSXM (node 5).
+"""field_capability.py -- maximum reachable central field of the PSXM.
 
 The design target (1 mT dipole, 1 mT/mm quadrupole) is a requirement, not
 a capability.  This script asks the complementary question: with the coil
@@ -14,7 +14,7 @@ Two different ceilings are computed and they answer different questions.
    I_k = I_max sign(n . c_k).  No field-quality constraint at all -- this
    is the field the magnet could make if the only thing that mattered
    were the value of B at the origin.  Closed form in
-   ``node5_common.analytic_ceilings``, reproduced numerically here.
+   ``field_analysis.analytic_ceilings``, reproduced numerically here.
 
 *  **Design ceiling (least squares).**  The currents that best reproduce
    a *pure* dipole or quadrupole on the 1 mm ring, renormalized to
@@ -25,19 +25,19 @@ Their ratio is the price of field quality.  Adding the shield can costs a
 further, much larger, factor -- which is exactly the shield-radius
 trade-off studied in the main report.
 
-Run:  python node5_max_field.py
-Outputs: figures/node5_max_field.png,
+Run:  python field_capability.py
+Outputs: figures/field_capability.png,
          ../PSXM_design_report/results_maxfield.tex
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from PSXM_coils import PSXMCoils
+from psxm_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import (G, MAX_CURRENT, SHIELD_N, solve_quad_coils,
+from shield import (G, MAX_CURRENT, SHIELD_N, solve_quad_coils,
                            solve_dipole_coils, ls_shield_currents, build_pair)
-from node5_common import (multipoles, uniformity, analytic_ceilings,
+from field_analysis import (multipoles, uniformity, analytic_ceilings,
                           unit_response, lp_ceiling, save_fig, write_macros)
 
 B0_TARGET = 1.0e-3                      # T
@@ -174,7 +174,7 @@ def main():
     fig.suptitle("Maximum reachable central field: hardware ceiling, "
                  "field-quality cost, and shield cost")
     fig.tight_layout()
-    save_fig(fig, "node5_max_field.png")
+    save_fig(fig, "field_capability.png")
 
     # --- macros ------------------------------------------------------------
     write_macros("results_maxfield.tex", {

@@ -20,12 +20,12 @@ Run:  python verify_ls.py     (prints a PASS/FAIL summary)
 
 import numpy as np
 
-from PSXM_coils import PSXMCoils
+from psxm_coils import PSXMCoils
 from current_solver import CurrentSolver
-from shield_common import (shield_zero_solver, solve_quad_coils,
+from shield import (shield_zero_solver, solve_quad_coils,
                            solve_dipole_coils, ls_shield_currents,
                            build_pair)
-from node5_common import multipoles
+from field_analysis import multipoles
 
 I_COIL = 1000.0
 SAMPLE_GAP_MM = 5.0      # radial gap between shield currents and B=0 samples
@@ -40,7 +40,7 @@ def quad_currents():
 
 def build_shield_solver(tpl, gap_mm=SAMPLE_GAP_MM):
     """B=0 samples on (shield+gap) and (shield+OUTER) rings, in the azimuthal
-    gaps between shield points (shared layout, see shield_common). Returns
+    gaps between shield points (shared layout, see shield). Returns
     the K blocks plus the solver itself (so callers can reuse its exact
     sample points instead of rebuilding them)."""
     solver = shield_zero_solver(tpl, gap_mm=gap_mm, outer_mm=OUTER_MM, n_between=N_BETWEEN)
