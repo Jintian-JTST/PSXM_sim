@@ -16,6 +16,13 @@ test
 *.out
 *.toc
 
+# report scripts also regenerate these analysis figures into figures/;
+# they are not used by the report, which keeps only its seven figures
+figures/background_field.png
+figures/rot_quad_fields.png
+figures/shield_current_map.png
+figures/shield_radius_selection.png
+
 # weekly deliverables / large binaries -- kept locally, not versioned
 weekly_report_*.pptx
 weekly_report_*.html
