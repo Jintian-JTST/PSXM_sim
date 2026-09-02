@@ -371,7 +371,7 @@ def fig_sampling():
         ax[2].loglog(Ns_series, disc[dr], marker=mk, ms=4.5, lw=1.4,
                      label=rf"$\Delta r$ = {dr:g} mm")
     ax[2].axhline(1e-12, color="0.5", lw=1.0, ls="--",
-                 label="reference 1e-12 $\mu$T (float-precision scale)")
+                 label=r"reference 1e-12 $\mu$T (float-precision scale)")
     ax[2].set_xlabel(r"Shield discretization $N_s$")
     ax[2].set_ylabel(r"Residual field at 419 mm ($\mu$T)")
     ax[2].set_title("(c) Exterior residual versus shield discretization",
@@ -491,7 +491,7 @@ def fig_selection(q, d, opt):
     ax[1].axhline(LEAK_REQ, color=COL_REQ, ls="-.", lw=1.4,
                   label=r"$1\ \mu$T level (for scale)")
     ax[1].axhline(1e-12, color="0.5", lw=1.0, ls="--",
-                 label="reference 1e-12 $\mu$T (float-precision scale)")
+                 label=r"reference 1e-12 $\mu$T (float-precision scale)")
     ax[1].axvline(Rq, color=COL_LS, ls=":", lw=1.2)
     ax[1].set_ylabel(r"Residual field at 419 mm ($\mu$T)")
     ax[1].set_title("(b) Exterior residual for alternative sampling layouts",

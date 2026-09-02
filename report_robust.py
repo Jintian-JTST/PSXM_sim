@@ -18,7 +18,7 @@ Two tests that the earlier scans did not cover.
     nothing at all on the shield surface; this is the closest the present
     formulation can get to a passive shield.
 
-Run:  python report_robust.py     (writes robust_scan.npz, prints a summary)
+Run:  python report_robust.py     (writes robust_scan.npz and the report macros)
 """
 
 import numpy as np
@@ -191,10 +191,6 @@ def main():
     print("\nwrote robust_scan.npz")
 
 
-if __name__ == "__main__":
-    main()
-
-
 # =========================================================================
 # precise thresholds and the ideal-limit demonstration, for the report
 # =========================================================================
@@ -287,3 +283,8 @@ def write_macros(fname="results_robust.tex"):
             f.write("\\renewcommand{\\%s}{%s}\n" % (k, v))
     print("wrote", p)
     return macros
+
+
+if __name__ == "__main__":
+    main()
+    write_macros()

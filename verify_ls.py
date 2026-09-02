@@ -142,8 +142,17 @@ def t4_analytic_ideal_shell():
     return ok
 
 
+def main():
+    checks = (
+        t1_roundtrip(),
+        t2_forward(),
+        t3_conditioning(),
+        t4_analytic_ideal_shell(),
+    )
+    if not all(checks):
+        raise SystemExit("least-squares verification FAILED")
+    print("All least-squares verification checks PASS")
+
+
 if __name__ == "__main__":
-    t1_roundtrip()
-    t2_forward()
-    t3_conditioning()
-    t4_analytic_ideal_shell()
+    main()
